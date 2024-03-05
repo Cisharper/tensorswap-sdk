@@ -5,12 +5,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TensorSwapSDK = exports.APPROX_SOL_ESCROW_RENT = exports.APPROX_NFT_AUTHORITY_RENT = exports.APPROX_DEPOSIT_RECEIPT_RENT = exports.APPROX_SINGLE_LISTING_RENT = exports.APPROX_SOL_MARGIN_RENT = exports.APPROX_POOL_RENT = exports.APPROX_TSWAP_RENT = exports.NFT_AUTHORITY_SIZE = exports.DEPOSIT_RECEIPT_SIZE = exports.SINGLE_LISTING_SIZE = exports.MARGIN_SIZE = exports.POOL_SIZE = exports.TSWAP_SIZE = exports.SNIPE_MIN_FEE = exports.TAKER_BROKER_PCT = exports.SNIPE_PROFIT_SHARE_BPS = exports.SNIPE_FEE_BPS = exports.triageIDL = exports.TSwapIDL_latest_EffSlot_Devnet = exports.TSwapIDL_latest_EffSlot_Mainnet = exports.TSwapIDL_latest = exports.TSwapIDL_v1_7_0_EffSlot_Devnet = exports.TSwapIDL_v1_7_0_EffSlot_Mainnet = exports.TSwapIDL_v1_7_0 = exports.TSwapIDL_v1_6_0_EffSlot_Mainnet = exports.TSwapIDL_v1_6_0 = exports.TSwapIDL_v1_5_0_EffSlot_Mainnet = exports.TSwapIDL_v1_5_0 = exports.TSwapIDL_v1_4_0_EffSlot_Mainnet = exports.TSwapIDL_v1_4_0 = exports.TSwapIDL_v1_3_0_EffSlot_Mainnet = exports.TSwapIDL_v1_3_0 = exports.TSwapIDL_v1_1_0_EffSlot_Mainnet = exports.TSwapIDL_v1_1_0 = exports.TSwapIDL_v1_0_0_EffSlot_Mainnet = exports.TSwapIDL_v1_0_0 = exports.TSwapIDL_v0_3_5_EffSlot_Mainnet = exports.TSwapIDL_v0_3_5 = exports.TSwapIDL_v0_3_0_EffSlot_Mainnet = exports.TSwapIDL_v0_3_0 = exports.TSwapIDL_v0_2_0_EffSlot_Mainnet = exports.TSwapIDL_v0_2_0 = exports.TSwapIDL_v0_1_32_EffSlot_Mainnet = exports.TSwapIDL_v0_1_32 = void 0;
 const anchor_1 = require("@coral-xyz/anchor");
-const bn_js_1 = __importDefault(require("bn.js"));
 const spl_token_1 = require("@solana/spl-token");
 const web3_js_1 = require("@solana/web3.js");
 const tensor_common_1 = require("@tensor-hq/tensor-common");
+const bn_js_1 = __importDefault(require("bn.js"));
 const uuid_1 = require("uuid");
 const common_1 = require("../common");
+const token2022_1 = require("../token2022");
 const tensor_whitelist_1 = require("../tensor_whitelist");
 const constants_1 = require("./constants");
 const pda_1 = require("./pda");
@@ -31,6 +32,7 @@ const tensorswap_v1_5_0_1 = require("./idl/tensorswap_v1_5_0");
 const tensorswap_v1_6_0_1 = require("./idl/tensorswap_v1_6_0");
 const tensorswap_v1_7_0_1 = require("./idl/tensorswap_v1_7_0");
 const types_1 = require("./types");
+const token2022_2 = require("../token2022");
 // https://solscan.io/tx/5ZWevmR3TLzUEVsPyE9bdUBqseeBdVMuELG45L15dx8rnXVCQZE2n1V1EbqEuGEaF6q4fND7rT7zwW8ZXjP1uC5s
 exports.TSwapIDL_v0_1_32 = tensorswap_v0_1_32_1.IDL;
 exports.TSwapIDL_v0_1_32_EffSlot_Mainnet = 150855169;
@@ -370,9 +372,9 @@ class TensorSwapSDK {
     }
     // --------------------------------------- deposit/withdraw methods
     // main signature: owner
-    async depositNft({ whitelist, nftMint, nftSource, owner, config, 
+    async depositNft({ whitelist, nftMint, nftSource, owner, config, tokenProgram, 
     /** pnft args */
-    metaCreators, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+    meta, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
         const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
         const [poolPda, poolBump] = (0, pda_1.findPoolPDA)({
             tswap: tswapPda,
@@ -389,14 +391,15 @@ class TensorSwapSDK {
         });
         const [mintProofPda] = (0, tensor_whitelist_1.findMintProofPDA)({ mint: nftMint, whitelist });
         //pnft
-        const { meta, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
+        const { meta: newMeta, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
             connection: this.program.provider.connection,
-            metaCreators,
+            meta,
             nftMint,
             destAta: escrowPda,
             authData,
             sourceAta: nftSource,
         });
+        meta = newMeta;
         const builder = this.program.methods
             .depositNft(config, authDataSerialized, !!ruleSet)
             .accounts({
@@ -407,9 +410,9 @@ class TensorSwapSDK {
             nftSource,
             nftEscrow: escrowPda,
             nftReceipt: receiptPda,
-            nftMetadata: meta,
+            nftMetadata: meta.address,
             owner,
-            tokenProgram: spl_token_1.TOKEN_PROGRAM_ID,
+            tokenProgram,
             systemProgram: web3_js_1.SystemProgram.programId,
             rent: web3_js_1.SYSVAR_RENT_PUBKEY,
             associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -486,9 +489,9 @@ class TensorSwapSDK {
         };
     }
     // main signature: owner
-    async withdrawNft({ whitelist, nftMint, nftDest, owner, config, 
+    async withdrawNft({ whitelist, nftMint, nftDest, owner, config, tokenProgram, 
     /** pnft args */
-    metaCreators, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+    meta, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
         const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
         const [poolPda, poolBump] = (0, pda_1.findPoolPDA)({
             tswap: tswapPda,
@@ -504,14 +507,15 @@ class TensorSwapSDK {
             nftMint,
         });
         //pnft
-        const { meta, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
+        const { meta: newMeta, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
             connection: this.program.provider.connection,
-            metaCreators,
+            meta,
             nftMint,
             destAta: nftDest,
             authData,
             sourceAta: escrowPda,
         });
+        meta = newMeta;
         const builder = this.program.methods
             .withdrawNft(config, authDataSerialized, !!ruleSet)
             .accounts({
@@ -523,11 +527,11 @@ class TensorSwapSDK {
             nftEscrow: escrowPda,
             nftReceipt: receiptPda,
             owner,
-            tokenProgram: spl_token_1.TOKEN_PROGRAM_ID,
+            tokenProgram,
             associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: web3_js_1.SystemProgram.programId,
             rent: web3_js_1.SYSVAR_RENT_PUBKEY,
-            nftMetadata: meta,
+            nftMetadata: meta.address,
             nftEdition: nftEditionPda,
             destTokenRecord: destTokenRecordPda,
             ownerTokenRecord: ownerTokenRecordPda,
@@ -636,9 +640,9 @@ class TensorSwapSDK {
     }
     // --------------------------------------- trade (buy/sell) methods
     //main signature: buyer
-    async buyNft({ whitelist, nftMint, nftBuyerAcc, owner, buyer, config, maxPrice, marginNr = null, optionalRoyaltyPct = null, takerBroker = null, 
+    async buyNft({ whitelist, nftMint, nftBuyerAcc, owner, buyer, config, maxPrice, tokenProgram, marginNr = null, optionalRoyaltyPct = null, takerBroker = null, 
     /** pnft args */
-    metaCreators, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+    meta, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
         const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
         const [poolPda, poolBump] = (0, pda_1.findPoolPDA)({
             tswap: tswapPda,
@@ -656,14 +660,15 @@ class TensorSwapSDK {
         });
         const tSwapAcc = await this.fetchTSwap(tswapPda);
         //pnft
-        const { meta, creators, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
+        const { meta: newMeta, creators, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
             connection: this.program.provider.connection,
-            metaCreators,
+            meta,
             nftMint,
             destAta: nftBuyerAcc,
             authData,
             sourceAta: escrowPda,
         });
+        meta = newMeta;
         let marginPda;
         let marginBump;
         if (!(0, tensor_common_1.isNullLike)(marginNr)) {
@@ -682,14 +687,14 @@ class TensorSwapSDK {
             pool: poolPda,
             whitelist,
             nftMint,
-            nftMetadata: meta,
+            nftMetadata: meta.address,
             nftBuyerAcc,
             nftEscrow: escrowPda,
             nftReceipt: receiptPda,
             solEscrow: solEscrowPda,
             owner,
             buyer,
-            tokenProgram: spl_token_1.TOKEN_PROGRAM_ID,
+            tokenProgram,
             associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: web3_js_1.SystemProgram.programId,
             rent: web3_js_1.SYSVAR_RENT_PUBKEY,
@@ -705,10 +710,10 @@ class TensorSwapSDK {
             marginAccount: marginPda ?? buyer,
             takerBroker: takerBroker ?? tSwapAcc.feeVault,
         })
-            .remainingAccounts(creators.map((c) => {
+            .remainingAccounts((creators ?? []).map((c) => {
             return {
-                pubkey: c,
-                isWritable: true,
+                pubkey: c.address,
+                isWritable: c.share > 0,
                 isSigner: false,
             };
         }));
@@ -747,9 +752,9 @@ class TensorSwapSDK {
         };
     }
     //main signature: seller
-    async sellNft({ type, whitelist, nftMint, nftSellerAcc, owner, seller, config, minPrice, marginNr = null, isCosigned = false, cosigner = constants_1.TSWAP_COSIGNER, optionalRoyaltyPct = null, takerBroker = null, 
+    async sellNft({ type, whitelist, nftMint, nftSellerAcc, owner, seller, config, minPrice, tokenProgram, marginNr = null, isCosigned = false, cosigner = constants_1.TSWAP_COSIGNER, optionalRoyaltyPct = null, takerBroker = null, 
     /** pnft args */
-    metaCreators, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+    meta, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
         const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
         const [poolPda, poolBump] = (0, pda_1.findPoolPDA)({
             tswap: tswapPda,
@@ -761,30 +766,30 @@ class TensorSwapSDK {
             curveType: (0, types_1.curveTypeU8)(config.curveType),
         });
         const [solEscrowPda, solEscrowBump] = (0, pda_1.findSolEscrowPDA)({ pool: poolPda });
-        const ownerAtaAcc = (0, spl_token_1.getAssociatedTokenAddressSync)(nftMint, owner, true);
+        const ownerAtaAcc = (0, spl_token_1.getAssociatedTokenAddressSync)(nftMint, owner, true, tokenProgram);
         const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
         const [receiptPda, receiptBump] = (0, pda_1.findNftDepositReceiptPDA)({ nftMint });
         const [mintProofPda] = (0, tensor_whitelist_1.findMintProofPDA)({ mint: nftMint, whitelist });
         const tSwapAcc = await this.fetchTSwap(tswapPda);
         //prepare 2 pnft account sets
-        const [{ meta, creators, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump: escrowDestTokenRecordBump, destTokenRecordPda: escrowDestTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, }, { destTokenRecordBump: tokenDestTokenRecordBump, destTokenRecordPda: tokenDestTokenRecordPda, },] = await Promise.all([
-            (0, tensor_common_1.prepPnftAccounts)({
-                connection: this.program.provider.connection,
-                metaCreators,
-                nftMint,
-                destAta: escrowPda,
-                authData,
-                sourceAta: nftSellerAcc,
-            }),
-            (0, tensor_common_1.prepPnftAccounts)({
-                connection: this.program.provider.connection,
-                metaCreators,
-                nftMint,
-                destAta: ownerAtaAcc,
-                authData,
-                sourceAta: nftSellerAcc,
-            }),
-        ]);
+        const { meta: newMeta, creators, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump: escrowDestTokenRecordBump, destTokenRecordPda: escrowDestTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
+            connection: this.program.provider.connection,
+            meta,
+            nftMint,
+            destAta: escrowPda,
+            authData,
+            sourceAta: nftSellerAcc,
+        });
+        meta = newMeta;
+        // Re-use fetched meta = faster.
+        const { destTokenRecordBump: tokenDestTokenRecordBump, destTokenRecordPda: tokenDestTokenRecordPda, } = await (0, tensor_common_1.prepPnftAccounts)({
+            connection: this.program.provider.connection,
+            meta,
+            nftMint,
+            destAta: ownerAtaAcc,
+            authData,
+            sourceAta: nftSellerAcc,
+        });
         let marginPda;
         let marginBump;
         if (!(0, tensor_common_1.isNullLike)(marginNr)) {
@@ -806,8 +811,8 @@ class TensorSwapSDK {
         //2.optional creators (last)
         creators.map((c) => {
             remAcc.push({
-                pubkey: c,
-                isWritable: true,
+                pubkey: c.address,
+                isWritable: c.share > 0,
                 isSigner: false,
             });
         });
@@ -817,7 +822,7 @@ class TensorSwapSDK {
             pool: poolPda,
             whitelist,
             nftMint,
-            nftMetadata: meta,
+            nftMetadata: meta.address,
             nftSellerAcc,
             solEscrow: solEscrowPda,
             mintProof: mintProofPda,
@@ -847,7 +852,7 @@ class TensorSwapSDK {
         const builder = method(config, minPrice, !!ruleSet, authDataSerialized, optionalRoyaltyPct)
             .accounts({
             shared,
-            tokenProgram: spl_token_1.TOKEN_PROGRAM_ID,
+            tokenProgram,
             systemProgram: web3_js_1.SystemProgram.programId,
             rent: web3_js_1.SYSVAR_RENT_PUBKEY,
             associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -1162,9 +1167,9 @@ class TensorSwapSDK {
         };
     }
     //main signature: cosigner
-    async takeSnipe({ whitelist, nftMint, nftSellerAcc, owner, seller, config, actualPrice, marginNr, cosigner = constants_1.TSWAP_COSIGNER, 
+    async takeSnipe({ whitelist, nftMint, nftSellerAcc, owner, seller, config, actualPrice, marginNr, tokenProgram, cosigner = constants_1.TSWAP_COSIGNER, 
     /** pnft args */
-    metaCreators, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+    meta, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
         const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
         const [poolPda, poolBump] = (0, pda_1.findPoolPDA)({
             tswap: tswapPda,
@@ -1176,7 +1181,7 @@ class TensorSwapSDK {
             curveType: (0, types_1.curveTypeU8)(config.curveType),
         });
         const [solEscrowPda, solEscrowBump] = (0, pda_1.findSolEscrowPDA)({ pool: poolPda });
-        const ownerAtaAcc = (0, spl_token_1.getAssociatedTokenAddressSync)(nftMint, owner, true);
+        const ownerAtaAcc = (0, spl_token_1.getAssociatedTokenAddressSync)(nftMint, owner, true, tokenProgram);
         const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
         const [receiptPda, receiptBump] = (0, pda_1.findNftDepositReceiptPDA)({ nftMint });
         const [mintProofPda] = (0, tensor_whitelist_1.findMintProofPDA)({ mint: nftMint, whitelist });
@@ -1187,14 +1192,15 @@ class TensorSwapSDK {
             marginNr,
         });
         //pnft
-        const { meta, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
+        const { meta: newMeta, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
             connection: this.program.provider.connection,
-            metaCreators,
+            meta,
             nftMint,
             destAta: ownerAtaAcc,
             authData,
             sourceAta: nftSellerAcc,
         });
+        meta = newMeta;
         const remAcc = [];
         //1.optional ruleset
         if (!!ruleSet) {
@@ -1211,7 +1217,7 @@ class TensorSwapSDK {
                 nftSellerAcc,
                 nftMint,
                 mintProof: mintProofPda,
-                nftMetadata: meta,
+                nftMetadata: meta.address,
                 solEscrow: solEscrowPda,
                 owner,
                 seller,
@@ -1219,7 +1225,7 @@ class TensorSwapSDK {
             ownerAtaAcc,
             marginAccount: marginPda,
             cosigner,
-            tokenProgram: spl_token_1.TOKEN_PROGRAM_ID,
+            tokenProgram,
             associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: web3_js_1.SystemProgram.programId,
             rent: web3_js_1.SYSVAR_RENT_PUBKEY,
@@ -1266,23 +1272,24 @@ class TensorSwapSDK {
     }
     // --------------------------------------- single listings
     //main signature owner + payer
-    async list({ nftMint, nftSource, owner, price, payer = null, 
+    async list({ nftMint, nftSource, owner, price, tokenProgram, payer = null, 
     /** pnft args */
-    metaCreators, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+    meta, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
         const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
         const [singleListing, singleListingBump] = (0, pda_1.findSingleListingPDA)({
             nftMint,
         });
         const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
         //pnft
-        const { meta, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
+        const { meta: newMeta, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
             connection: this.program.provider.connection,
-            metaCreators,
+            meta,
             nftMint,
             destAta: escrowPda,
             authData,
             sourceAta: nftSource,
         });
+        meta = newMeta;
         const builder = this.program.methods
             .list(price, authDataSerialized, !!ruleSet)
             .accounts({
@@ -1290,10 +1297,10 @@ class TensorSwapSDK {
             nftMint,
             nftSource,
             nftEscrow: escrowPda,
-            nftMetadata: meta,
+            nftMetadata: meta.address,
             owner,
             singleListing,
-            tokenProgram: spl_token_1.TOKEN_PROGRAM_ID,
+            tokenProgram,
             systemProgram: web3_js_1.SystemProgram.programId,
             rent: web3_js_1.SYSVAR_RENT_PUBKEY,
             associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -1333,23 +1340,24 @@ class TensorSwapSDK {
         };
     }
     // main signature: owner
-    async delist({ nftMint, nftDest, owner, payer = null, 
+    async delist({ nftMint, nftDest, owner, tokenProgram, payer = null, 
     /** pnft args */
-    metaCreators, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+    meta, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
         const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
         const [singleListing, singleListingBump] = (0, pda_1.findSingleListingPDA)({
             nftMint,
         });
         const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
         //pnft
-        const { meta, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
+        const { meta: newMeta, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
             connection: this.program.provider.connection,
-            metaCreators,
+            meta,
             nftMint,
             destAta: nftDest,
             authData,
             sourceAta: escrowPda,
         });
+        meta = newMeta;
         const builder = this.program.methods
             .delist(authDataSerialized, !!ruleSet)
             .accounts({
@@ -1359,11 +1367,11 @@ class TensorSwapSDK {
             nftDest,
             nftEscrow: escrowPda,
             owner,
-            tokenProgram: spl_token_1.TOKEN_PROGRAM_ID,
+            tokenProgram,
             associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: web3_js_1.SystemProgram.programId,
             rent: web3_js_1.SYSVAR_RENT_PUBKEY,
-            nftMetadata: meta,
+            nftMetadata: meta.address,
             nftEdition: nftEditionPda,
             destTokenRecord: destTokenRecordPda,
             ownerTokenRecord: ownerTokenRecordPda,
@@ -1402,9 +1410,9 @@ class TensorSwapSDK {
         };
     }
     //main signature: buyer
-    async buySingleListing({ nftMint, nftBuyerAcc, owner, buyer, maxPrice, optionalRoyaltyPct = null, takerBroker = null, 
+    async buySingleListing({ nftMint, nftBuyerAcc, owner, buyer, maxPrice, tokenProgram, optionalRoyaltyPct = null, takerBroker = null, 
     /** pnft args */
-    metaCreators, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+    meta, authData = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, ruleSetAddnCompute = common_1.DEFAULT_RULESET_ADDN_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
         const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
         const [singleListing, singleListingBump] = (0, pda_1.findSingleListingPDA)({
             nftMint,
@@ -1412,14 +1420,15 @@ class TensorSwapSDK {
         const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
         const tSwapAcc = await this.fetchTSwap(tswapPda);
         //pnft
-        const { meta, creators, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
+        const { meta: newMeta, creators, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump, destTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
             connection: this.program.provider.connection,
-            metaCreators,
+            meta,
             nftMint,
             destAta: nftBuyerAcc,
             authData,
             sourceAta: escrowPda,
         });
+        meta = newMeta;
         const builder = this.program.methods
             .buySingleListing(maxPrice, !!ruleSet, authDataSerialized, optionalRoyaltyPct)
             .accounts({
@@ -1427,12 +1436,12 @@ class TensorSwapSDK {
             singleListing,
             feeVault: tSwapAcc.feeVault,
             nftMint,
-            nftMetadata: meta,
+            nftMetadata: meta.address,
             nftBuyerAcc,
             nftEscrow: escrowPda,
             owner,
             buyer,
-            tokenProgram: spl_token_1.TOKEN_PROGRAM_ID,
+            tokenProgram,
             associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: web3_js_1.SystemProgram.programId,
             rent: web3_js_1.SYSVAR_RENT_PUBKEY,
@@ -1449,8 +1458,8 @@ class TensorSwapSDK {
         })
             .remainingAccounts(creators.map((c) => {
             return {
-                pubkey: c,
-                isWritable: true,
+                pubkey: c.address,
+                isWritable: c.share > 0,
                 isSigner: false,
             };
         }));
@@ -1503,6 +1512,815 @@ class TensorSwapSDK {
             singleListingBump,
         };
     }
+    // --------------------------------------- T22
+    //main signature owner + payer
+    async listT22({ nftMint, nftSource, owner, price, payer = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [singleListing, singleListingBump] = (0, pda_1.findSingleListingPDA)({
+            nftMint,
+        });
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const builder = this.program.methods.listT22(price).accounts({
+            tswap: tswapPda,
+            nftMint,
+            nftSource,
+            nftEscrow: escrowPda,
+            owner,
+            singleListing,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            payer: payer ?? owner,
+        });
+        const ixs = (0, tensor_common_1.prependComputeIxs)([await builder.instruction()], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            escrowPda,
+            escrowBump,
+            singleListing,
+            singleListingBump,
+        };
+    }
+    // main signature: owner
+    async delistT22({ nftMint, nftDest, owner, payer = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [singleListing, singleListingBump] = (0, pda_1.findSingleListingPDA)({
+            nftMint,
+        });
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const builder = this.program.methods.delistT22().accounts({
+            tswap: tswapPda,
+            singleListing,
+            nftMint,
+            nftDest,
+            nftEscrow: escrowPda,
+            owner,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            rent: web3_js_1.SYSVAR_RENT_PUBKEY,
+            payer: payer ?? owner,
+        });
+        const ixs = (0, tensor_common_1.prependComputeIxs)([
+            ...(await this.clearDelegate(nftDest, owner)),
+            await builder.instruction(),
+        ], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            escrowPda,
+            escrowBump,
+            singleListing,
+            singleListingBump,
+        };
+    }
+    //main signature: buyer
+    async buySingleListingT22({ nftMint, nftBuyerAcc, owner, buyer, maxPrice, takerBroker = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [singleListing, singleListingBump] = (0, pda_1.findSingleListingPDA)({
+            nftMint,
+        });
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const tSwapAcc = await this.fetchTSwap(tswapPda);
+        const builder = this.program.methods
+            .buySingleListingT22(maxPrice)
+            .accounts({
+            tswap: tswapPda,
+            singleListing,
+            feeVault: tSwapAcc.feeVault,
+            nftMint,
+            nftBuyerAcc,
+            nftEscrow: escrowPda,
+            owner,
+            buyer,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            takerBroker: takerBroker ?? tSwapAcc.feeVault,
+        });
+        const ixs = (0, tensor_common_1.prependComputeIxs)([await builder.instruction()], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            escrowPda,
+            escrowBump,
+            singleListing,
+            singleListingBump,
+        };
+    }
+    //main signature: buyer
+    async buyNftT22({ whitelist, nftMint, nftBuyerAcc, owner, buyer, config, maxPrice, marginNr = null, takerBroker = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [poolPda, poolBump] = (0, pda_1.findPoolPDA)({
+            tswap: tswapPda,
+            owner,
+            whitelist,
+            delta: config.delta,
+            startingPrice: config.startingPrice,
+            poolType: (0, types_1.poolTypeU8)(config.poolType),
+            curveType: (0, types_1.curveTypeU8)(config.curveType),
+        });
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const [solEscrowPda, solEscrowBump] = (0, pda_1.findSolEscrowPDA)({ pool: poolPda });
+        const [receiptPda, receiptBump] = (0, pda_1.findNftDepositReceiptPDA)({
+            nftMint,
+        });
+        const tSwapAcc = await this.fetchTSwap(tswapPda);
+        let marginPda = null;
+        let marginBump = null;
+        if (!(0, tensor_common_1.isNullLike)(marginNr)) {
+            [marginPda, marginBump] = (0, pda_1.findMarginPDA)({
+                tswap: tswapPda,
+                owner,
+                marginNr,
+            });
+        }
+        const builder = this.program.methods
+            // TODO: Proofs disabled for buys for now until tx size limit increases.
+            .buyNftT22(config, maxPrice)
+            .accounts({
+            tswap: tswapPda,
+            feeVault: tSwapAcc.feeVault,
+            pool: poolPda,
+            whitelist,
+            nftMint,
+            nftBuyerAcc,
+            nftEscrow: escrowPda,
+            nftReceipt: receiptPda,
+            solEscrow: solEscrowPda,
+            owner,
+            buyer,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            marginAccount: marginPda ?? buyer,
+            takerBroker: takerBroker ?? tSwapAcc.feeVault,
+        });
+        const ixs = (0, tensor_common_1.prependComputeIxs)([await builder.instruction()], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            poolPda,
+            poolBump,
+            escrowPda,
+            escrowBump,
+            solEscrowPda,
+            solEscrowBump,
+            receiptPda,
+            receiptBump,
+            marginBump,
+            marginPda,
+        };
+    }
+    // main signature: owner
+    async depositNftT22({ whitelist, nftMint, nftSource, owner, config, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [poolPda, poolBump] = (0, pda_1.findPoolPDA)({
+            tswap: tswapPda,
+            owner,
+            whitelist,
+            delta: config.delta,
+            startingPrice: config.startingPrice,
+            poolType: (0, types_1.poolTypeU8)(config.poolType),
+            curveType: (0, types_1.curveTypeU8)(config.curveType),
+        });
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const [receiptPda, receiptBump] = (0, pda_1.findNftDepositReceiptPDA)({
+            nftMint,
+        });
+        const [mintProofPda] = (0, tensor_whitelist_1.findMintProofPDA)({ mint: nftMint, whitelist });
+        const builder = this.program.methods.depositNftT22(config).accounts({
+            tswap: tswapPda,
+            pool: poolPda,
+            whitelist,
+            nftMint,
+            nftSource,
+            nftEscrow: escrowPda,
+            nftReceipt: receiptPda,
+            owner,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            mintProof: mintProofPda,
+        });
+        const ixs = (0, tensor_common_1.prependComputeIxs)([await builder.instruction()], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            poolPda,
+            poolBump,
+            escrowPda,
+            escrowBump,
+            receiptPda,
+            receiptBump,
+            mintProofPda,
+        };
+    }
+    //main signature: seller
+    async sellNftT22({ type, whitelist, nftMint, nftSellerAcc, owner, seller, config, minPrice, marginNr = null, isCosigned = false, cosigner = constants_1.TSWAP_COSIGNER, takerBroker = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [poolPda, poolBump] = (0, pda_1.findPoolPDA)({
+            tswap: tswapPda,
+            owner,
+            whitelist,
+            delta: config.delta,
+            startingPrice: config.startingPrice,
+            poolType: (0, types_1.poolTypeU8)(config.poolType),
+            curveType: (0, types_1.curveTypeU8)(config.curveType),
+        });
+        const [solEscrowPda, solEscrowBump] = (0, pda_1.findSolEscrowPDA)({ pool: poolPda });
+        const ownerAtaAcc = (0, spl_token_1.getAssociatedTokenAddressSync)(nftMint, owner, true, spl_token_1.TOKEN_2022_PROGRAM_ID);
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const [receiptPda, receiptBump] = (0, pda_1.findNftDepositReceiptPDA)({ nftMint });
+        const [mintProofPda] = (0, tensor_whitelist_1.findMintProofPDA)({ mint: nftMint, whitelist });
+        const tSwapAcc = await this.fetchTSwap(tswapPda);
+        let marginPda = null;
+        let marginBump = null;
+        if (!(0, tensor_common_1.isNullLike)(marginNr)) {
+            [marginPda, marginBump] = (0, pda_1.findMarginPDA)({
+                tswap: tswapPda,
+                owner,
+                marginNr,
+            });
+        }
+        //1.optional cosigner
+        const remAcc = [];
+        if (isCosigned && type === "token") {
+            remAcc.push({
+                pubkey: cosigner,
+                isSigner: true,
+                isWritable: false,
+            });
+        }
+        const shared = {
+            tswap: tswapPda,
+            feeVault: tSwapAcc.feeVault,
+            pool: poolPda,
+            whitelist,
+            nftMint,
+            nftSellerAcc,
+            solEscrow: solEscrowPda,
+            mintProof: mintProofPda,
+            owner,
+            seller,
+        };
+        const { method, accounts } = type === "trade"
+            ? {
+                method: this.program.methods.sellNftTradePoolT22,
+                accounts: {
+                    nftEscrow: escrowPda,
+                    nftReceipt: receiptPda,
+                },
+            }
+            : {
+                method: this.program.methods.sellNftTokenPoolT22,
+                accounts: {
+                    ownerAtaAcc,
+                    associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+                },
+            };
+        // TODO: Proofs passed through PDA instead of ix b/c of tx limit size.
+        // const builder = method(config as any, proof, minPrice)
+        const builder = method(config, minPrice)
+            .accounts({
+            shared,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            marginAccount: marginPda ?? seller,
+            takerBroker: takerBroker ?? tSwapAcc.feeVault,
+            ...accounts,
+        })
+            .remainingAccounts(remAcc);
+        const ixs = (0, tensor_common_1.prependComputeIxs)([await builder.instruction()], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            poolPda,
+            poolBump,
+            solEscrowPda,
+            solEscrowBump,
+            ownerAtaAcc,
+            escrowPda,
+            escrowBump,
+            receiptPda,
+            receiptBump,
+            marginPda,
+            marginBump,
+        };
+    }
+    // main signature: owner
+    async withdrawNftT22({ whitelist, nftMint, nftDest, owner, config, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [poolPda, poolBump] = (0, pda_1.findPoolPDA)({
+            tswap: tswapPda,
+            owner,
+            whitelist,
+            delta: config.delta,
+            startingPrice: config.startingPrice,
+            poolType: (0, types_1.poolTypeU8)(config.poolType),
+            curveType: (0, types_1.curveTypeU8)(config.curveType),
+        });
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const [receiptPda, receiptBump] = (0, pda_1.findNftDepositReceiptPDA)({
+            nftMint,
+        });
+        const builder = this.program.methods
+            .withdrawNftT22(config)
+            .accounts({
+            tswap: tswapPda,
+            pool: poolPda,
+            whitelist,
+            nftMint,
+            nftDest,
+            nftEscrow: escrowPda,
+            nftReceipt: receiptPda,
+            owner,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+        });
+        const ixs = (0, tensor_common_1.prependComputeIxs)([
+            ...(await this.clearDelegate(nftDest, owner)),
+            await builder.instruction(),
+        ], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            poolPda,
+            poolBump,
+            escrowPda,
+            escrowBump,
+            receiptPda,
+            receiptBump,
+        };
+    }
+    // --------------------------------------- WNS
+    //main signature owner + payer
+    async wnsList({ nftMint, nftSource, owner, price, collectionMint, payer = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [singleListing, singleListingBump] = (0, pda_1.findSingleListingPDA)({
+            nftMint,
+        });
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const approveAccount = (0, token2022_2.getApprovalAccount)(nftMint);
+        const distribution = (0, token2022_2.getDistributionAccount)(collectionMint);
+        const extraMetas = (0, spl_token_1.getExtraAccountMetaAddress)(nftMint, token2022_1.WNS_PROGRAM_ID);
+        const builder = this.program.methods.wnsList(price).accounts({
+            tswap: tswapPda,
+            nftMint,
+            nftSource,
+            nftEscrow: escrowPda,
+            owner,
+            singleListing,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            payer: payer ?? owner,
+            approveAccount,
+            distribution,
+            distributionProgram: token2022_1.WNS_DISTRIBUTION_PROGRAM_ID,
+            wnsProgram: token2022_1.WNS_PROGRAM_ID,
+            extraMetas,
+        });
+        const ixs = (0, tensor_common_1.prependComputeIxs)([await builder.instruction()], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            escrowPda,
+            escrowBump,
+            singleListing,
+            singleListingBump,
+        };
+    }
+    // main signature: owner
+    async wnsDelist({ nftMint, nftDest, owner, collectionMint, payer = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [singleListing, singleListingBump] = (0, pda_1.findSingleListingPDA)({
+            nftMint,
+        });
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const approveAccount = (0, token2022_2.getApprovalAccount)(nftMint);
+        const distribution = (0, token2022_2.getDistributionAccount)(collectionMint);
+        const extraMetas = (0, spl_token_1.getExtraAccountMetaAddress)(nftMint, token2022_1.WNS_PROGRAM_ID);
+        const builder = this.program.methods.wnsDelist().accounts({
+            tswap: tswapPda,
+            singleListing,
+            nftMint,
+            nftDest,
+            nftEscrow: escrowPda,
+            owner,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            rent: web3_js_1.SYSVAR_RENT_PUBKEY,
+            payer: payer ?? owner,
+            approveAccount,
+            distribution,
+            distributionProgram: token2022_1.WNS_DISTRIBUTION_PROGRAM_ID,
+            wnsProgram: token2022_1.WNS_PROGRAM_ID,
+            extraMetas,
+        });
+        const ixs = (0, tensor_common_1.prependComputeIxs)([
+            ...(await this.clearDelegate(nftDest, owner)),
+            await builder.instruction(),
+        ], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            escrowPda,
+            escrowBump,
+            singleListing,
+            singleListingBump,
+        };
+    }
+    //main signature: buyer
+    async wnsBuySingleListing({ nftMint, nftBuyerAcc, owner, buyer, maxPrice, collectionMint, takerBroker = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [singleListing, singleListingBump] = (0, pda_1.findSingleListingPDA)({
+            nftMint,
+        });
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const tSwapAcc = await this.fetchTSwap(tswapPda);
+        const approveAccount = (0, token2022_2.getApprovalAccount)(nftMint);
+        const distribution = (0, token2022_2.getDistributionAccount)(collectionMint);
+        const extraMetas = (0, spl_token_1.getExtraAccountMetaAddress)(nftMint, token2022_1.WNS_PROGRAM_ID);
+        const builder = this.program.methods
+            .wnsBuySingleListing(maxPrice)
+            .accounts({
+            tswap: tswapPda,
+            singleListing,
+            feeVault: tSwapAcc.feeVault,
+            nftMint,
+            nftBuyerAcc,
+            nftEscrow: escrowPda,
+            owner,
+            buyer,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            takerBroker: takerBroker ?? tSwapAcc.feeVault,
+            approveAccount,
+            distribution,
+            distributionProgram: token2022_1.WNS_DISTRIBUTION_PROGRAM_ID,
+            wnsProgram: token2022_1.WNS_PROGRAM_ID,
+            extraMetas,
+        });
+        const ixs = (0, tensor_common_1.prependComputeIxs)([await builder.instruction()], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            escrowPda,
+            escrowBump,
+            singleListing,
+            singleListingBump,
+        };
+    }
+    //main signature: buyer
+    async wnsBuyNft({ whitelist, nftMint, nftBuyerAcc, owner, buyer, config, maxPrice, collectionMint, marginNr = null, takerBroker = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [poolPda, poolBump] = (0, pda_1.findPoolPDA)({
+            tswap: tswapPda,
+            owner,
+            whitelist,
+            delta: config.delta,
+            startingPrice: config.startingPrice,
+            poolType: (0, types_1.poolTypeU8)(config.poolType),
+            curveType: (0, types_1.curveTypeU8)(config.curveType),
+        });
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const [solEscrowPda, solEscrowBump] = (0, pda_1.findSolEscrowPDA)({ pool: poolPda });
+        const [receiptPda, receiptBump] = (0, pda_1.findNftDepositReceiptPDA)({
+            nftMint,
+        });
+        const tSwapAcc = await this.fetchTSwap(tswapPda);
+        const approveAccount = (0, token2022_2.getApprovalAccount)(nftMint);
+        const distribution = (0, token2022_2.getDistributionAccount)(collectionMint);
+        const extraMetas = (0, spl_token_1.getExtraAccountMetaAddress)(nftMint, token2022_1.WNS_PROGRAM_ID);
+        let marginPda = null;
+        let marginBump = null;
+        if (!(0, tensor_common_1.isNullLike)(marginNr)) {
+            [marginPda, marginBump] = (0, pda_1.findMarginPDA)({
+                tswap: tswapPda,
+                owner,
+                marginNr,
+            });
+        }
+        const builder = this.program.methods
+            // TODO: Proofs disabled for buys for now until tx size limit increases.
+            .wnsBuyNft(config, maxPrice)
+            .accounts({
+            tswap: tswapPda,
+            feeVault: tSwapAcc.feeVault,
+            pool: poolPda,
+            whitelist,
+            nftMint,
+            nftBuyerAcc,
+            nftEscrow: escrowPda,
+            nftReceipt: receiptPda,
+            solEscrow: solEscrowPda,
+            owner,
+            buyer,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            marginAccount: marginPda ?? buyer,
+            takerBroker: takerBroker ?? tSwapAcc.feeVault,
+            approveAccount,
+            distribution,
+            distributionProgram: token2022_1.WNS_DISTRIBUTION_PROGRAM_ID,
+            wnsProgram: token2022_1.WNS_PROGRAM_ID,
+            extraMetas,
+        });
+        const ixs = (0, tensor_common_1.prependComputeIxs)([await builder.instruction()], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            poolPda,
+            poolBump,
+            escrowPda,
+            escrowBump,
+            solEscrowPda,
+            solEscrowBump,
+            receiptPda,
+            receiptBump,
+            marginBump,
+            marginPda,
+        };
+    }
+    // main signature: owner
+    async wnsDepositNft({ whitelist, nftMint, nftSource, owner, config, collectionMint, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [poolPda, poolBump] = (0, pda_1.findPoolPDA)({
+            tswap: tswapPda,
+            owner,
+            whitelist,
+            delta: config.delta,
+            startingPrice: config.startingPrice,
+            poolType: (0, types_1.poolTypeU8)(config.poolType),
+            curveType: (0, types_1.curveTypeU8)(config.curveType),
+        });
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const [receiptPda, receiptBump] = (0, pda_1.findNftDepositReceiptPDA)({
+            nftMint,
+        });
+        const [mintProofPda] = (0, tensor_whitelist_1.findMintProofPDA)({ mint: nftMint, whitelist });
+        const approveAccount = (0, token2022_2.getApprovalAccount)(nftMint);
+        const distribution = (0, token2022_2.getDistributionAccount)(collectionMint);
+        const extraMetas = (0, spl_token_1.getExtraAccountMetaAddress)(nftMint, token2022_1.WNS_PROGRAM_ID);
+        const builder = this.program.methods.wnsDepositNft(config).accounts({
+            tswap: tswapPda,
+            pool: poolPda,
+            whitelist,
+            nftMint,
+            nftSource,
+            nftEscrow: escrowPda,
+            nftReceipt: receiptPda,
+            owner,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            mintProof: mintProofPda,
+            approveAccount,
+            distribution,
+            distributionProgram: token2022_1.WNS_DISTRIBUTION_PROGRAM_ID,
+            wnsProgram: token2022_1.WNS_PROGRAM_ID,
+            extraMetas,
+        });
+        const ixs = (0, tensor_common_1.prependComputeIxs)([await builder.instruction()], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            poolPda,
+            poolBump,
+            escrowPda,
+            escrowBump,
+            receiptPda,
+            receiptBump,
+            mintProofPda,
+        };
+    }
+    //main signature: seller
+    async wnsSellNft({ type, whitelist, nftMint, nftSellerAcc, owner, seller, config, minPrice, collectionMint, marginNr = null, isCosigned = false, cosigner = constants_1.TSWAP_COSIGNER, takerBroker = null, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [poolPda, poolBump] = (0, pda_1.findPoolPDA)({
+            tswap: tswapPda,
+            owner,
+            whitelist,
+            delta: config.delta,
+            startingPrice: config.startingPrice,
+            poolType: (0, types_1.poolTypeU8)(config.poolType),
+            curveType: (0, types_1.curveTypeU8)(config.curveType),
+        });
+        const [solEscrowPda, solEscrowBump] = (0, pda_1.findSolEscrowPDA)({ pool: poolPda });
+        const ownerAtaAcc = (0, spl_token_1.getAssociatedTokenAddressSync)(nftMint, owner, true, spl_token_1.TOKEN_2022_PROGRAM_ID);
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const [receiptPda, receiptBump] = (0, pda_1.findNftDepositReceiptPDA)({ nftMint });
+        const [mintProofPda] = (0, tensor_whitelist_1.findMintProofPDA)({ mint: nftMint, whitelist });
+        const tSwapAcc = await this.fetchTSwap(tswapPda);
+        const approveAccount = (0, token2022_2.getApprovalAccount)(nftMint);
+        const distribution = (0, token2022_2.getDistributionAccount)(collectionMint);
+        const extraMetas = (0, spl_token_1.getExtraAccountMetaAddress)(nftMint, token2022_1.WNS_PROGRAM_ID);
+        let marginPda = null;
+        let marginBump = null;
+        if (!(0, tensor_common_1.isNullLike)(marginNr)) {
+            [marginPda, marginBump] = (0, pda_1.findMarginPDA)({
+                tswap: tswapPda,
+                owner,
+                marginNr,
+            });
+        }
+        //1.optional cosigner
+        const cosigned = [];
+        if (isCosigned && type === "token") {
+            cosigned.push({
+                pubkey: cosigner,
+                isSigner: true,
+                isWritable: false,
+            });
+        }
+        const shared = {
+            tswap: tswapPda,
+            feeVault: tSwapAcc.feeVault,
+            pool: poolPda,
+            whitelist,
+            nftMint,
+            nftSellerAcc,
+            solEscrow: solEscrowPda,
+            mintProof: mintProofPda,
+            owner,
+            seller,
+        };
+        const { method, accounts } = type === "trade"
+            ? {
+                method: this.program.methods.wnsSellNftTradePool,
+                accounts: {
+                    nftEscrow: escrowPda,
+                    nftReceipt: receiptPda,
+                },
+            }
+            : {
+                method: this.program.methods.wnsSellNftTokenPool,
+                accounts: {
+                    ownerAtaAcc,
+                    associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+                },
+            };
+        // TODO: Proofs passed through PDA instead of ix b/c of tx limit size.
+        // const builder = method(config as any, proof, minPrice)
+        const builder = method(config, minPrice)
+            .accounts({
+            shared,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            marginAccount: marginPda ?? seller,
+            takerBroker: takerBroker ?? tSwapAcc.feeVault,
+            approveAccount,
+            distribution,
+            distributionProgram: token2022_1.WNS_DISTRIBUTION_PROGRAM_ID,
+            wnsProgram: token2022_1.WNS_PROGRAM_ID,
+            extraMetas,
+            ...accounts,
+        })
+            .remainingAccounts(cosigned);
+        const ixs = (0, tensor_common_1.prependComputeIxs)([await builder.instruction()], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            poolPda,
+            poolBump,
+            solEscrowPda,
+            solEscrowBump,
+            ownerAtaAcc,
+            escrowPda,
+            escrowBump,
+            receiptPda,
+            receiptBump,
+            marginPda,
+            marginBump,
+        };
+    }
+    // main signature: owner
+    async wnsWithdrawNft({ whitelist, nftMint, nftDest, owner, config, collectionMint, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
+        const [tswapPda, tswapBump] = (0, pda_1.findTSwapPDA)({});
+        const [poolPda, poolBump] = (0, pda_1.findPoolPDA)({
+            tswap: tswapPda,
+            owner,
+            whitelist,
+            delta: config.delta,
+            startingPrice: config.startingPrice,
+            poolType: (0, types_1.poolTypeU8)(config.poolType),
+            curveType: (0, types_1.curveTypeU8)(config.curveType),
+        });
+        const [escrowPda, escrowBump] = (0, pda_1.findNftEscrowPDA)({ nftMint });
+        const [receiptPda, receiptBump] = (0, pda_1.findNftDepositReceiptPDA)({
+            nftMint,
+        });
+        const approveAccount = (0, token2022_2.getApprovalAccount)(nftMint);
+        const distribution = (0, token2022_2.getDistributionAccount)(collectionMint);
+        const extraMetas = (0, spl_token_1.getExtraAccountMetaAddress)(nftMint, token2022_1.WNS_PROGRAM_ID);
+        const builder = this.program.methods
+            .wnsWithdrawNft(config)
+            .accounts({
+            tswap: tswapPda,
+            pool: poolPda,
+            whitelist,
+            nftMint,
+            nftDest,
+            nftEscrow: escrowPda,
+            nftReceipt: receiptPda,
+            owner,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            approveAccount,
+            distribution,
+            distributionProgram: token2022_1.WNS_DISTRIBUTION_PROGRAM_ID,
+            wnsProgram: token2022_1.WNS_PROGRAM_ID,
+            extraMetas,
+        });
+        const ixs = (0, tensor_common_1.prependComputeIxs)([
+            ...(await this.clearDelegate(nftDest, owner)),
+            await builder.instruction(),
+        ], (0, tensor_common_1.isNullLike)(compute) ? null : compute ?? 0, priorityMicroLamports);
+        return {
+            builder,
+            tx: {
+                ixs,
+                extraSigners: [],
+            },
+            tswapPda,
+            tswapBump,
+            poolPda,
+            poolBump,
+            escrowPda,
+            escrowBump,
+            receiptPda,
+            receiptBump,
+        };
+    }
     // --------------------------------------- helper methods
     // remove delegate if set, else a pNFT transfer will fail
     async clearDelegate(nftDest, owner) {
@@ -1538,8 +2356,30 @@ class TensorSwapSDK {
     async getTokenAcctRent() {
         return await (0, spl_token_1.getMinimumBalanceForRentExemptAccount)(this.program.provider.connection);
     }
+    async getImmutableTokenAcctRent() {
+        const accountLen = (0, spl_token_1.getAccountLen)([spl_token_1.ExtensionType.ImmutableOwner]);
+        return await this.program.provider.connection.getMinimumBalanceForRentExemption(accountLen);
+    }
+    async getTokenAcctRentForMint(mint, programId) {
+        /* TODO: currently using fixed extensions since WNS uses extensions that are not
+                 yet supported by the spl library.
+    
+        const mintAccount = await getMint(
+          this.program.provider.connection,
+          mint,
+          undefined,
+          programId
+        );
+        const accountLen = getAccountLenForMint(mintAccount);
+        */
+        const accountLen = (0, spl_token_1.getAccountLen)([spl_token_1.ExtensionType.TransferHookAccount]);
+        return await this.program.provider.connection.getMinimumBalanceForRentExemption(accountLen);
+    }
     async getSolEscrowRent() {
         return await (0, tensor_common_1.getRent)(this.program.provider.connection, this.program.account.solEscrow);
+    }
+    async getApproveRent() {
+        return await this.program.provider.connection.getMinimumBalanceForRentExemption((0, token2022_1.getApproveAccountLen)());
     }
     getError(name) {
         //@ts-ignore (throwing weird ts errors for me)
@@ -1577,6 +2417,12 @@ class TensorSwapSDK {
             case "delist":
             case "buySingleListing":
             case "editSingleListing":
+            case "listT22":
+            case "delistT22":
+            case "buySingleListingT22":
+            case "wnsList":
+            case "wnsDelist":
+            case "wnsBuySingleListing":
                 return null;
             case "editPool": {
                 const config = ix.ix.data.newConfig;
@@ -1592,6 +2438,16 @@ class TensorSwapSDK {
             case "buyNft":
             case "sellNftTokenPool":
             case "sellNftTradePool":
+            case "depositNftT22":
+            case "withdrawNftT22":
+            case "buyNftT22":
+            case "sellNftTokenPoolT22":
+            case "sellNftTradePoolT22":
+            case "wnsDepositNft":
+            case "wnsWithdrawNft":
+            case "wnsBuyNft":
+            case "wnsSellNftTokenPool":
+            case "wnsSellNftTradePool":
             case "setPoolFreeze":
             case "editPoolInPlace":
             case "reallocPool": {
@@ -1606,14 +2462,24 @@ class TensorSwapSDK {
             case "sellNftTradePool":
             case "sellNftTokenPool":
             case "takeSnipe":
-            case "buySingleListing": {
+            case "buySingleListing":
+            case "buyNftT22":
+            case "sellNftTokenPoolT22":
+            case "sellNftTradePoolT22":
+            case "buySingleListingT22":
+            case "wnsBuyNft":
+            case "wnsBuySingleListing":
+            case "wnsSellNftTokenPool":
+            case "wnsSellNftTradePool": {
                 // NB: the actual sell price includes the "MM fee" (really a spread).
                 const event = ix.events.find((e) => e.name === "BuySellEvent");
                 if (!event)
                     return null;
                 return event.data.currentPrice.sub(event.data.mmFee);
             }
-            case "delist": {
+            case "delist":
+            case "delistT22":
+            case "wnsDelist": {
                 const event = ix.events.find((e) => e.name === "DelistEvent");
                 if (!event)
                     return null;
@@ -1631,6 +2497,8 @@ class TensorSwapSDK {
             case "detachPoolFromMargin":
                 return ix.ix.data.lamports;
             case "list":
+            case "listT22":
+            case "wnsList":
             case "editSingleListing":
                 return ix.ix.data.price;
             case "initUpdateTswap":
@@ -1645,6 +2513,10 @@ class TensorSwapSDK {
             case "closeMarginAccount":
             case "setPoolFreeze":
             case "attachPoolToMargin":
+            case "depositNftT22":
+            case "withdrawNftT22":
+            case "wnsDepositNft":
+            case "wnsWithdrawNft":
                 return null;
         }
     }
@@ -1656,6 +2528,14 @@ class TensorSwapSDK {
             case "sellNftTokenPool":
             case "takeSnipe":
             case "buySingleListing":
+            case "buyNftT22":
+            case "sellNftTradePoolT22":
+            case "sellNftTokenPoolT22":
+            case "buySingleListingT22":
+            case "wnsBuyNft":
+            case "wnsSellNftTradePool":
+            case "wnsSellNftTokenPool":
+            case "wnsBuySingleListing":
                 // TODO: Think of a better way to handle multiple events.
                 const event = ix.events.find((e) => e.name === "BuySellEvent");
                 if (!event)
@@ -1686,6 +2566,14 @@ class TensorSwapSDK {
             case "detachPoolFromMargin":
             case "setPoolFreeze":
             case "editSingleListing":
+            case "listT22":
+            case "delistT22":
+            case "depositNftT22":
+            case "withdrawNftT22":
+            case "wnsList":
+            case "wnsDelist":
+            case "wnsDepositNft":
+            case "wnsWithdrawNft":
                 return null;
         }
     }

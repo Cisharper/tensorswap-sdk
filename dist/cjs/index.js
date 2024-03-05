@@ -19,4 +19,5 @@ __exportStar(require("./common"), exports);
 __exportStar(require("./tensorswap"), exports);
 __exportStar(require("./tensor_whitelist"), exports);
 __exportStar(require("./tensor_bid"), exports);
+__exportStar(require("./token2022"), exports);
 //# sourceMappingURL=index.js.map

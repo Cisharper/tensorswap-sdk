@@ -5,11 +5,11 @@ import { findMintProofPDA, findWhitelistAuthPDA, findWhitelistPDA, } from "./pda
 import { v4 } from "uuid";
 import MerkleTree from "merkletreejs";
 import keccak256 from "keccak256";
-import { evalMathExpr } from "../common";
+import { DEFAULT_MICRO_LAMPORTS, evalMathExpr, } from "../common";
 // ---------------------------------------- Versioned IDLs for backwards compat when parsing.
 import { IDL as IDL_v0_1_0, } from "./idl/tensor_whitelist_v0_1_0";
 import { IDL as IDL_latest, } from "./idl/tensor_whitelist";
-import { Cluster, decodeAnchorAcct, genAcctDiscHexMap, getRent, getRentSync, hexCode, removeNullBytes, } from "@tensor-hq/tensor-common";
+import { Cluster, decodeAnchorAcct, genAcctDiscHexMap, getRent, getRentSync, hexCode, prependComputeIxs, removeNullBytes, } from "@tensor-hq/tensor-common";
 //a non-breaking update to migrate account space to exportable constants: https://explorer.solana.com/tx/5czMUGttDttcXwhTTGH8QzyTffwcVfeUAQbY2FzSh8WGxRFBQAmdrYeGBQxfEfS1bog4CfTvqPvXmvxdygQ5aJKE
 export const TensorWhitelistIDL_v0_1_0 = IDL_v0_1_0;
 export const TensorWhitelistIDL_v0_1_0_EffSlot = 0; //todo find slot
@@ -85,7 +85,7 @@ export class TensorWhitelistSDK {
     // --------------------------------------- whitelist methods
     //main signature: cosigner
     async initUpdateWhitelist({ cosigner = TLIST_COSIGNER, owner, //can't pass default here, coz then it'll be auto-included in rem accs
-    uuid, rootHash = null, name = null, voc = null, fvc = null, }) {
+    uuid, rootHash = null, name = null, voc = null, fvc = null, compute = null, priorityMicroLamports = DEFAULT_MICRO_LAMPORTS, }) {
         const [authPda] = findWhitelistAuthPDA({});
         const [whitelistPda] = findWhitelistPDA({
             uuid,
@@ -111,7 +111,10 @@ export class TensorWhitelistSDK {
             .remainingAccounts(remAcc);
         return {
             builder,
-            tx: { ixs: [await builder.instruction()], extraSigners: [] },
+            tx: {
+                ixs: prependComputeIxs([await builder.instruction()], compute, priorityMicroLamports),
+                extraSigners: [],
+            },
             authPda,
             whitelistPda,
         };
@@ -235,15 +238,31 @@ export class TensorWhitelistSDK {
         return removeNullBytes(String.fromCharCode(...buffer));
     };
     // Generates a Merkle tree + root hash + proofs for a set of mints.
-    static createTreeForMints = (mints) => {
+    static createTreeForMints = (mints, skipVerify = false) => {
         const buffers = mints.map((m) => m.toBuffer());
-        const tree = new MerkleTree(buffers, keccak256, {
-            sort: true,
-            hashLeaves: true,
+        // Create hashes
+        const leaves = buffers.map(keccak256);
+        // Create an array of { leaf, mint } to preserve mapping
+        const leafMintPairs = leaves.map((leaf, index) => {
+            return { leaf: leaf, mint: mints[index] };
         });
-        const proofs = mints.map((mint) => {
-            const leaf = keccak256(mint.toBuffer());
-            const proof = tree.getProof(leaf);
+        // Presort the array based on the leaves, so that original leaves remain in the same order after tree construction
+        const sortedLeafMintPairs = leafMintPairs.slice().sort((a, b) => Buffer.compare(a.leaf, b.leaf));
+        // Extract only the leaves from sortedLeafMintPairs
+        const sortedLeaves = sortedLeafMintPairs.map(pair => pair.leaf);
+        const tree = new MerkleTree(sortedLeaves, keccak256, {
+            sortPairs: true,
+        });
+        const rootHash = tree.getRoot();
+        // Get all proofs (order should be same as leaves)
+        const allProofs = tree.getProofs();
+        // This assumes proofs indices align with mints indices (which appears to be the case).
+        const proofs = sortedLeafMintPairs.map((val, index) => {
+            const proof = allProofs[index];
+            const mint = val.mint;
+            if (!skipVerify && !tree.verify(proof, keccak256(mint.toBuffer()), rootHash)) {
+                throw new Error(`Invalid proof for mint at index ${index}`);
+            }
             const validProof = proof.map((p) => p.data);
             return { mint, proof: validProof };
         });

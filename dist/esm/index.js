@@ -3,4 +3,5 @@ export * from "./common";
 export * from "./tensorswap";
 export * from "./tensor_whitelist";
 export * from "./tensor_bid";
+export * from "./token2022";
 //# sourceMappingURL=index.js.map

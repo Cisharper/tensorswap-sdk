@@ -131,7 +131,7 @@ export declare class TensorWhitelistSDK {
         authPda: PublicKey;
     }>;
     initUpdateWhitelist({ cosigner, owner, //can't pass default here, coz then it'll be auto-included in rem accs
-    uuid, rootHash, name, voc, fvc, }: {
+    uuid, rootHash, name, voc, fvc, compute, priorityMicroLamports, }: {
         cosigner?: PublicKey;
         owner?: PublicKey;
         uuid: number[];
@@ -139,6 +139,8 @@ export declare class TensorWhitelistSDK {
         name?: number[] | null;
         voc?: PublicKey | null;
         fvc?: PublicKey | null;
+        priorityMicroLamports?: number | null;
+        compute?: number | null;
     }): Promise<{
         builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TensorWhitelistIDL, ({
             name: "initUpdateWhitelist";
@@ -468,7 +470,7 @@ export declare class TensorWhitelistSDK {
     static bufferToUuid: (buffer: number[]) => string;
     static nameToBuffer: (name: string) => number[];
     static bufferToName: (buffer: number[]) => string;
-    static createTreeForMints: (mints: PublicKey[]) => {
+    static createTreeForMints: (mints: PublicKey[], skipVerify?: boolean) => {
         tree: MerkleTree;
         root: number[];
         proofs: {

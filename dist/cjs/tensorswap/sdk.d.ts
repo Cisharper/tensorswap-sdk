@@ -1,8 +1,8 @@
 /// <reference types="node" />
 import { AnchorProvider, BorshCoder, Coder, Event, EventParser, Instruction, Program } from "@coral-xyz/anchor";
-import BN from "bn.js";
 import { AccountInfo, Commitment, PublicKey, TransactionInstruction, TransactionResponse } from "@solana/web3.js";
 import { AcctDiscHexMap, Cluster, ParsedAnchorIx, PnftArgs } from "@tensor-hq/tensor-common";
+import BN from "bn.js";
 import { AccountSuffix } from "../common";
 import { ParsedAccount, PoolConfig } from "../types";
 import { IDL as IDL_latest, Tensorswap as TSwap_latest } from "./idl/tensorswap";
@@ -63,9 +63,9 @@ export declare const APPROX_SINGLE_LISTING_RENT: number;
 export declare const APPROX_DEPOSIT_RECEIPT_RENT: number;
 export declare const APPROX_NFT_AUTHORITY_RENT: number;
 export declare const APPROX_SOL_ESCROW_RENT = 946560;
-export type BuySellEventAnchor = Event<typeof IDL_latest["events"][0]>;
-export type DelistEventAnchor = Event<typeof IDL_latest["events"][1]>;
-export type TSwapIxName = typeof IDL_latest["instructions"][number]["name"];
+export type BuySellEventAnchor = Event<(typeof IDL_latest)["events"][0]>;
+export type DelistEventAnchor = Event<(typeof IDL_latest)["events"][1]>;
+export type TSwapIxName = (typeof IDL_latest)["instructions"][number]["name"];
 export type TSwapIx = Omit<Instruction, "name"> & {
     name: TSwapIxName;
 };
@@ -547,6 +547,66 @@ export declare class TensorSwapSDK {
         destination: PublicKey;
     }): Promise<{
         builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, ({
+            name: "withdrawTswapFees"; /** pnft args */
+            accounts: [{
+                name: "tswap";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "cosigner";
+                isMut: false;
+                isSigner: true;
+                docs: ["We ask also for a signature just to make sure this wallet can actually sign things"];
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "destination";
+                isMut: true; /** optional % OF full royalty amount, so eg 50% of 10% royalty would be 5% */
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }];
+            args: [{
+                name: "amount";
+                type: "u64";
+            }];
+        } & {
+            name: "withdrawTswapFees";
+        }) | ({
+            name: "withdrawTswapFees";
+            accounts: [{
+                name: "tswap";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "cosigner";
+                isMut: false;
+                isSigner: true;
+                docs: ["We ask also for a signature just to make sure this wallet can actually sign things"];
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "destination";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }];
+            args: [{
+                name: "amount";
+                type: "u64";
+            }];
+        } & {
+            name: "withdrawTswapFees";
+        }) | ({
             name: "withdrawTswapFees";
             accounts: [{
                 name: "tswap";
@@ -602,72 +662,12 @@ export declare class TensorSwapSDK {
             }];
             args: [{
                 name: "amount";
-                type: "u64"; /** optional taker broker account */
-            }];
-        } & {
-            name: "withdrawTswapFees";
-        }) | ({
-            name: "withdrawTswapFees";
-            accounts: [{
-                name: "tswap";
-                isMut: true;
-                isSigner: false;
-            }, {
-                name: "cosigner";
-                isMut: false;
-                isSigner: true;
-                docs: ["We ask also for a signature just to make sure this wallet can actually sign things"];
-            }, {
-                name: "owner";
-                isMut: true;
-                isSigner: true;
-            }, {
-                name: "destination";
-                isMut: true;
-                isSigner: false;
-            }, {
-                name: "systemProgram";
-                isMut: false;
-                isSigner: false;
-            }];
-            args: [{
-                name: "amount";
                 type: "u64";
             }];
         } & {
             name: "withdrawTswapFees";
         }) | ({
-            name: "withdrawTswapFees";
-            accounts: [{
-                name: "tswap";
-                isMut: true;
-                isSigner: false;
-            }, {
-                name: "cosigner";
-                isMut: false;
-                isSigner: true;
-                docs: ["We ask also for a signature just to make sure this wallet can actually sign things"];
-            }, {
-                name: "owner";
-                isMut: true;
-                isSigner: true;
-            }, {
-                name: "destination";
-                isMut: true;
-                isSigner: false;
-            }, {
-                name: "systemProgram";
-                isMut: false;
-                isSigner: false;
-            }];
-            args: [{
-                name: "amount";
-                type: "u64";
-            }];
-        } & {
-            name: "withdrawTswapFees";
-        }) | ({
-            name: "withdrawTswapFees";
+            name: "withdrawTswapFees"; /** pnft args */
             accounts: [{
                 name: "tswap";
                 isMut: true;
@@ -1882,14 +1882,15 @@ export declare class TensorSwapSDK {
         newSolEscrowPda: PublicKey;
         newSolEscrowBump: number;
     }>;
-    depositNft({ whitelist, nftMint, nftSource, owner, config, 
+    depositNft({ whitelist, nftMint, nftSource, owner, config, tokenProgram, 
     /** pnft args */
-    metaCreators, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
+    meta, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
         whitelist: PublicKey;
         nftMint: PublicKey;
         nftSource: PublicKey;
         owner: PublicKey;
         config: PoolConfigAnchor;
+        tokenProgram: PublicKey;
     } & PnftArgs): Promise<{
         builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, ({
             name: "depositNft";
@@ -2931,7 +2932,10 @@ export declare class TensorSwapSDK {
         destTokenRecordPda: PublicKey;
         destTokenRecordBump: number;
         nftEditionPda: PublicKey;
-        meta: PublicKey;
+        meta: {
+            address: PublicKey;
+            metadata: import("@metaplex-foundation/mpl-token-metadata").Metadata;
+        };
     }>;
     depositSol({ whitelist, owner, config, lamports, }: {
         whitelist: PublicKey;
@@ -3411,14 +3415,15 @@ export declare class TensorSwapSDK {
         solEscrowPda: PublicKey;
         solEscrowBump: number;
     }>;
-    withdrawNft({ whitelist, nftMint, nftDest, owner, config, 
+    withdrawNft({ whitelist, nftMint, nftDest, owner, config, tokenProgram, 
     /** pnft args */
-    metaCreators, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
+    meta, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
         whitelist: PublicKey;
         nftMint: PublicKey;
         nftDest: PublicKey;
         owner: PublicKey;
         config: PoolConfigAnchor;
+        tokenProgram: PublicKey;
     } & PnftArgs): Promise<{
         builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, ({
             name: "withdrawNft";
@@ -4408,7 +4413,10 @@ export declare class TensorSwapSDK {
         ownerTokenRecordPda: PublicKey;
         destTokenRecordBump: number;
         destTokenRecordPda: PublicKey;
-        meta: PublicKey;
+        meta: {
+            address: PublicKey;
+            metadata: import("@metaplex-foundation/mpl-token-metadata").Metadata;
+        };
     }>;
     withdrawSol({ whitelist, owner, config, lamports, }: {
         whitelist: PublicKey;
@@ -5074,9 +5082,9 @@ export declare class TensorSwapSDK {
         solEscrowPda: PublicKey;
         solEscrowBump: number;
     }>;
-    buyNft({ whitelist, nftMint, nftBuyerAcc, owner, buyer, config, maxPrice, marginNr, optionalRoyaltyPct, takerBroker, 
+    buyNft({ whitelist, nftMint, nftBuyerAcc, owner, buyer, config, maxPrice, tokenProgram, marginNr, optionalRoyaltyPct, takerBroker, 
     /** pnft args */
-    metaCreators, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
+    meta, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
         whitelist: PublicKey;
         nftMint: PublicKey;
         nftBuyerAcc: PublicKey;
@@ -5084,6 +5092,7 @@ export declare class TensorSwapSDK {
         buyer: PublicKey;
         config: PoolConfigAnchor;
         maxPrice: BN;
+        tokenProgram: PublicKey;
         marginNr?: number | null;
         optionalRoyaltyPct?: number | null;
         takerBroker?: PublicKey | null;
@@ -6338,14 +6347,17 @@ export declare class TensorSwapSDK {
         ownerTokenRecordPda: PublicKey;
         destTokenRecordBump: number;
         destTokenRecordPda: PublicKey;
-        meta: PublicKey;
+        meta: {
+            address: PublicKey;
+            metadata: import("@metaplex-foundation/mpl-token-metadata").Metadata;
+        };
         ruleSet: PublicKey | undefined;
         marginBump: any;
         marginPda: any;
     }>;
-    sellNft({ type, whitelist, nftMint, nftSellerAcc, owner, seller, config, minPrice, marginNr, isCosigned, cosigner, optionalRoyaltyPct, takerBroker, 
+    sellNft({ type, whitelist, nftMint, nftSellerAcc, owner, seller, config, minPrice, tokenProgram, marginNr, isCosigned, cosigner, optionalRoyaltyPct, takerBroker, 
     /** pnft args */
-    metaCreators, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
+    meta, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
         type: "trade" | "token";
         whitelist: PublicKey;
         nftMint: PublicKey;
@@ -6354,6 +6366,7 @@ export declare class TensorSwapSDK {
         seller: PublicKey;
         config: PoolConfigAnchor;
         minPrice: BN;
+        tokenProgram: PublicKey;
         marginNr?: number | null;
         isCosigned?: boolean;
         cosigner?: PublicKey;
@@ -8973,7 +8986,10 @@ export declare class TensorSwapSDK {
         ownerTokenRecordPda: PublicKey;
         destTokenRecordBump: number;
         destTokenRecordPda: PublicKey;
-        meta: PublicKey;
+        meta: {
+            address: PublicKey;
+            metadata: import("@metaplex-foundation/mpl-token-metadata").Metadata;
+        };
     }>;
     reallocPool({ owner, cosigner, whitelist, config, }: {
         owner: PublicKey;
@@ -9732,6 +9748,7 @@ export declare class TensorSwapSDK {
                 isMut: false;
                 isSigner: false;
             }];
+            /** pnft args */
             args: [];
         } & {
             name: "closeMarginAccount";
@@ -9754,6 +9771,7 @@ export declare class TensorSwapSDK {
                 isMut: false;
                 isSigner: false;
             }];
+            /** pnft args */
             args: [];
         } & {
             name: "closeMarginAccount";
@@ -9776,6 +9794,7 @@ export declare class TensorSwapSDK {
                 isMut: false;
                 isSigner: false;
             }];
+            /** pnft args */
             args: [];
         } & {
             name: "closeMarginAccount";
@@ -10106,7 +10125,7 @@ export declare class TensorSwapSDK {
         }) | ({
             name: "withdrawMarginAccount";
             accounts: [{
-                name: "tswap"; /** pnft args */
+                name: "tswap";
                 isMut: false;
                 isSigner: false;
             }, {
@@ -10121,7 +10140,7 @@ export declare class TensorSwapSDK {
                 name: "systemProgram";
                 isMut: false;
                 isSigner: false;
-            }];
+            }]; /** pnft args */
             args: [{
                 name: "lamports";
                 type: "u64";
@@ -11206,9 +11225,9 @@ export declare class TensorSwapSDK {
         marginPda: PublicKey;
         marginBump: number;
     }>;
-    takeSnipe({ whitelist, nftMint, nftSellerAcc, owner, seller, config, actualPrice, marginNr, cosigner, 
+    takeSnipe({ whitelist, nftMint, nftSellerAcc, owner, seller, config, actualPrice, marginNr, tokenProgram, cosigner, 
     /** pnft args */
-    metaCreators, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
+    meta, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
         whitelist: PublicKey;
         nftMint: PublicKey;
         nftSellerAcc: PublicKey;
@@ -11217,6 +11236,7 @@ export declare class TensorSwapSDK {
         config: PoolConfigAnchor;
         actualPrice: BN;
         marginNr: number;
+        tokenProgram: PublicKey;
         cosigner?: PublicKey;
     } & PnftArgs): Promise<{
         builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, ({
@@ -11667,16 +11687,20 @@ export declare class TensorSwapSDK {
         ownerTokenRecordPda: PublicKey;
         destTokenRecordBump: number;
         destTokenRecordPda: PublicKey;
-        meta: PublicKey;
+        meta: {
+            address: PublicKey;
+            metadata: import("@metaplex-foundation/mpl-token-metadata").Metadata;
+        };
         ruleSet: PublicKey | undefined;
     }>;
-    list({ nftMint, nftSource, owner, price, payer, 
+    list({ nftMint, nftSource, owner, price, tokenProgram, payer, 
     /** pnft args */
-    metaCreators, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
+    meta, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
         nftMint: PublicKey;
         nftSource: PublicKey;
         owner: PublicKey;
         price: BN;
+        tokenProgram: PublicKey;
         payer?: PublicKey | null;
     } & PnftArgs): Promise<{
         builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, ({
@@ -12078,7 +12102,7 @@ export declare class TensorSwapSDK {
                 isMut: false;
                 isSigner: false;
             }, {
-                name: "rent";
+                name: "rent"; /** pnft args */
                 isMut: false;
                 isSigner: false;
             }, {
@@ -12144,16 +12168,20 @@ export declare class TensorSwapSDK {
         destTokenRecordPda: PublicKey;
         destTokenRecordBump: number;
         nftEditionPda: PublicKey;
-        meta: PublicKey;
+        meta: {
+            address: PublicKey;
+            metadata: import("@metaplex-foundation/mpl-token-metadata").Metadata;
+        };
         singleListing: PublicKey;
         singleListingBump: number;
     }>;
-    delist({ nftMint, nftDest, owner, payer, 
+    delist({ nftMint, nftDest, owner, tokenProgram, payer, 
     /** pnft args */
-    metaCreators, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
+    meta, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
         nftMint: PublicKey;
         nftDest: PublicKey;
         owner: PublicKey;
+        tokenProgram: PublicKey;
         payer?: PublicKey | null;
     } & PnftArgs): Promise<{
         builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, ({
@@ -12400,11 +12428,10 @@ export declare class TensorSwapSDK {
                 name: "pnftShared";
                 accounts: [{
                     name: "tokenMetadataProgram";
-                    /** optional % OF full royalty amount, so eg 50% of 10% royalty would be 5% */
                     isMut: false;
                     isSigner: false;
                 }, {
-                    name: "instructions"; /** optional taker broker account */
+                    name: "instructions";
                     isMut: false;
                     isSigner: false;
                 }, {
@@ -12495,7 +12522,7 @@ export declare class TensorSwapSDK {
                 }, {
                     name: "authorizationRulesProgram";
                     isMut: false;
-                    isSigner: false;
+                    isSigner: false; /** optional % OF full royalty amount, so eg 50% of 10% royalty would be 5% */
                 }];
             }];
             args: [{
@@ -12606,18 +12633,22 @@ export declare class TensorSwapSDK {
         ownerTokenRecordPda: PublicKey;
         destTokenRecordBump: number;
         destTokenRecordPda: PublicKey;
-        meta: PublicKey;
+        meta: {
+            address: PublicKey;
+            metadata: import("@metaplex-foundation/mpl-token-metadata").Metadata;
+        };
         singleListing: PublicKey;
         singleListingBump: number;
     }>;
-    buySingleListing({ nftMint, nftBuyerAcc, owner, buyer, maxPrice, optionalRoyaltyPct, takerBroker, 
+    buySingleListing({ nftMint, nftBuyerAcc, owner, buyer, maxPrice, tokenProgram, optionalRoyaltyPct, takerBroker, 
     /** pnft args */
-    metaCreators, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
+    meta, authData, compute, ruleSetAddnCompute, priorityMicroLamports, }: {
         nftMint: PublicKey;
         nftBuyerAcc: PublicKey;
         owner: PublicKey;
         buyer: PublicKey;
         maxPrice: BN;
+        tokenProgram: PublicKey;
         optionalRoyaltyPct?: number | null;
         takerBroker?: PublicKey | null;
     } & PnftArgs): Promise<{
@@ -12839,6 +12870,7 @@ export declare class TensorSwapSDK {
                 isMut: false;
                 isSigner: false;
             }, {
+                /** optional taker broker account */
                 name: "feeVault";
                 isMut: true;
                 isSigner: false;
@@ -13142,7 +13174,10 @@ export declare class TensorSwapSDK {
         ownerTokenRecordPda: PublicKey;
         destTokenRecordBump: number;
         destTokenRecordPda: PublicKey;
-        meta: PublicKey;
+        meta: {
+            address: PublicKey;
+            metadata: import("@metaplex-foundation/mpl-token-metadata").Metadata;
+        };
         ruleSet: PublicKey | undefined;
         singleListing: PublicKey;
         singleListingBump: number;
@@ -13285,6 +13320,1565 @@ export declare class TensorSwapSDK {
         singleListing: PublicKey;
         singleListingBump: number;
     }>;
+    listT22({ nftMint, nftSource, owner, price, payer, compute, priorityMicroLamports, }: {
+        nftMint: PublicKey;
+        nftSource: PublicKey;
+        owner: PublicKey;
+        price: BN;
+        payer?: PublicKey | null;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "listT22";
+            accounts: [{
+                name: "tswap";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftSource";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftMint";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "singleListing";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "payer";
+                isMut: true;
+                isSigner: true;
+            }];
+            args: [{
+                name: "price";
+                type: "u64";
+            }];
+        } & {
+            name: "listT22";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        singleListing: PublicKey;
+        singleListingBump: number;
+    }>;
+    delistT22({ nftMint, nftDest, owner, payer, compute, priorityMicroLamports, }: {
+        nftMint: PublicKey;
+        nftDest: PublicKey;
+        owner: PublicKey;
+        payer?: PublicKey | null;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "delistT22";
+            accounts: [{
+                name: "tswap";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftDest";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftMint";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+                docs: ["Implicitly checked via transfer. Will fail if wrong account", "This is closed below (dest = owner)"];
+            }, {
+                name: "singleListing";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "rent";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "associatedTokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "payer";
+                isMut: true;
+                isSigner: true;
+            }];
+            args: [];
+        } & {
+            name: "delistT22";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        singleListing: PublicKey;
+        singleListingBump: number;
+    }>;
+    buySingleListingT22({ nftMint, nftBuyerAcc, owner, buyer, maxPrice, takerBroker, compute, priorityMicroLamports, }: {
+        nftMint: PublicKey;
+        nftBuyerAcc: PublicKey;
+        owner: PublicKey;
+        buyer: PublicKey;
+        maxPrice: BN;
+        takerBroker?: PublicKey | null;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "buySingleListingT22";
+            accounts: [{
+                name: "tswap";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "feeVault";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "singleListing";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftBuyerAcc";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftMint";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+                docs: ["Implicitly checked via transfer. Will fail if wrong account.", "This is closed below (dest = owner)"];
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "buyer";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "associatedTokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "takerBroker";
+                isMut: true;
+                isSigner: false;
+            }];
+            args: [{
+                name: "maxPrice";
+                type: "u64";
+            }];
+        } & {
+            name: "buySingleListingT22";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        singleListing: PublicKey;
+        singleListingBump: number;
+    }>;
+    buyNftT22({ whitelist, nftMint, nftBuyerAcc, owner, buyer, config, maxPrice, marginNr, takerBroker, compute, priorityMicroLamports, }: {
+        whitelist: PublicKey;
+        nftMint: PublicKey;
+        nftBuyerAcc: PublicKey;
+        owner: PublicKey;
+        buyer: PublicKey;
+        config: PoolConfigAnchor;
+        maxPrice: BN;
+        marginNr?: number | null;
+        takerBroker?: PublicKey | null;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "buyNftT22";
+            accounts: [{
+                name: "tswap";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "feeVault";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "pool";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "whitelist";
+                isMut: false;
+                isSigner: false;
+                docs: ["Needed for pool seeds derivation, has_one = whitelist on pool"];
+            }, {
+                name: "nftBuyerAcc";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftMint";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+                docs: ["Implicitly checked via transfer. Will fail if wrong account.", "This is closed below (dest = owner)"];
+            }, {
+                name: "nftReceipt";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "solEscrow";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "buyer";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "associatedTokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "marginAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "takerBroker";
+                isMut: true;
+                isSigner: false;
+            }];
+            args: [{
+                name: "config";
+                type: {
+                    defined: "PoolConfig";
+                };
+            }, {
+                name: "maxPrice";
+                type: "u64";
+            }];
+        } & {
+            name: "buyNftT22";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        poolPda: PublicKey;
+        poolBump: number;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        solEscrowPda: PublicKey;
+        solEscrowBump: number;
+        receiptPda: PublicKey;
+        receiptBump: number;
+        marginBump: number | null;
+        marginPda: PublicKey | null;
+    }>;
+    depositNftT22({ whitelist, nftMint, nftSource, owner, config, compute, priorityMicroLamports, }: {
+        whitelist: PublicKey;
+        nftMint: PublicKey;
+        nftSource: PublicKey;
+        owner: PublicKey;
+        config: PoolConfigAnchor;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "depositNftT22";
+            accounts: [{
+                name: "tswap";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "pool";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "whitelist";
+                isMut: false;
+                isSigner: false;
+                docs: ["Needed for pool seeds derivation, also checked via has_one on pool"];
+            }, {
+                name: "nftSource";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftMint";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftReceipt";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "mintProof";
+                isMut: false;
+                isSigner: false;
+            }];
+            args: [{
+                name: "config";
+                type: {
+                    defined: "PoolConfig";
+                };
+            }];
+        } & {
+            name: "depositNftT22";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        poolPda: PublicKey;
+        poolBump: number;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        receiptPda: PublicKey;
+        receiptBump: number;
+        mintProofPda: PublicKey;
+    }>;
+    sellNftT22({ type, whitelist, nftMint, nftSellerAcc, owner, seller, config, minPrice, marginNr, isCosigned, cosigner, takerBroker, compute, priorityMicroLamports, }: {
+        type: "trade" | "token";
+        whitelist: PublicKey;
+        nftMint: PublicKey;
+        nftSellerAcc: PublicKey;
+        owner: PublicKey;
+        seller: PublicKey;
+        config: PoolConfigAnchor;
+        minPrice: BN;
+        marginNr?: number | null;
+        isCosigned?: boolean;
+        cosigner?: PublicKey;
+        /** optional taker broker account */
+        takerBroker?: PublicKey | null;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "sellNftTradePoolT22";
+            accounts: [{
+                name: "shared";
+                accounts: [{
+                    name: "tswap";
+                    isMut: false;
+                    isSigner: false;
+                }, {
+                    name: "feeVault";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "pool";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "whitelist";
+                    isMut: false;
+                    isSigner: false;
+                    docs: ["Needed for pool seeds derivation, also checked via has_one on pool"];
+                }, {
+                    name: "mintProof";
+                    isMut: false;
+                    isSigner: false;
+                    docs: ["intentionally not deserializing, it would be dummy in the case of VOC/FVC based verification"];
+                }, {
+                    name: "nftSellerAcc";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "nftMint";
+                    isMut: false;
+                    isSigner: false;
+                }, {
+                    name: "solEscrow";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "owner";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "seller";
+                    isMut: true;
+                    isSigner: true;
+                }];
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftReceipt";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "marginAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "takerBroker";
+                isMut: true;
+                isSigner: false;
+            }];
+            args: [{
+                name: "config";
+                type: {
+                    defined: "PoolConfig";
+                };
+            }, {
+                name: "minPrice";
+                type: "u64";
+            }];
+        } & {
+            name: "sellNftTradePoolT22";
+        }> | import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "sellNftTokenPoolT22";
+            accounts: [{
+                name: "shared";
+                accounts: [{
+                    name: "tswap";
+                    isMut: false;
+                    isSigner: false;
+                }, {
+                    name: "feeVault";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "pool";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "whitelist";
+                    isMut: false;
+                    isSigner: false;
+                    docs: ["Needed for pool seeds derivation, also checked via has_one on pool"];
+                }, {
+                    name: "mintProof";
+                    isMut: false;
+                    isSigner: false;
+                    docs: ["intentionally not deserializing, it would be dummy in the case of VOC/FVC based verification"];
+                }, {
+                    name: "nftSellerAcc";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "nftMint";
+                    isMut: false;
+                    isSigner: false;
+                }, {
+                    name: "solEscrow";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "owner";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "seller";
+                    isMut: true;
+                    isSigner: true;
+                }];
+            }, {
+                name: "ownerAtaAcc";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "associatedTokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "marginAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "takerBroker";
+                isMut: true;
+                isSigner: false;
+            }];
+            args: [{
+                name: "config";
+                type: {
+                    defined: "PoolConfig";
+                };
+            }, {
+                name: "minPrice";
+                type: "u64";
+            }];
+        } & {
+            name: "sellNftTokenPoolT22";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        poolPda: PublicKey;
+        poolBump: number;
+        solEscrowPda: PublicKey;
+        solEscrowBump: number;
+        ownerAtaAcc: PublicKey;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        receiptPda: PublicKey;
+        receiptBump: number;
+        marginPda: PublicKey | null;
+        marginBump: number | null;
+    }>;
+    withdrawNftT22({ whitelist, nftMint, nftDest, owner, config, compute, priorityMicroLamports, }: {
+        whitelist: PublicKey;
+        nftMint: PublicKey;
+        nftDest: PublicKey;
+        owner: PublicKey;
+        config: PoolConfigAnchor;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "withdrawNftT22";
+            accounts: [{
+                name: "tswap";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "pool";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "whitelist";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftDest";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftMint";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+                docs: ["Implicitly checked via transfer. Will fail if wrong account", "This is closed below (dest = owner)"];
+            }, {
+                name: "nftReceipt";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: true;
+                docs: ["Tied to the pool because used to verify pool seeds"];
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "associatedTokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }];
+            args: [{
+                name: "config";
+                type: {
+                    defined: "PoolConfig";
+                };
+            }];
+        } & {
+            name: "withdrawNftT22";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        poolPda: PublicKey;
+        poolBump: number;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        receiptPda: PublicKey;
+        receiptBump: number;
+    }>;
+    wnsList({ nftMint, nftSource, owner, price, collectionMint, payer, compute, priorityMicroLamports, }: {
+        nftMint: PublicKey;
+        nftSource: PublicKey;
+        owner: PublicKey;
+        price: BN;
+        collectionMint: PublicKey;
+        payer?: PublicKey | null;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "wnsList";
+            accounts: [{
+                name: "tswap";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftSource";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftMint";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "singleListing";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "associatedTokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "payer";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "approveAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "distribution";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "wnsProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "distributionProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "extraMetas";
+                isMut: false;
+                isSigner: false;
+            }];
+            args: [{
+                name: "price";
+                type: "u64";
+            }];
+        } & {
+            name: "wnsList";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        singleListing: PublicKey;
+        singleListingBump: number;
+    }>;
+    wnsDelist({ nftMint, nftDest, owner, collectionMint, payer, compute, priorityMicroLamports, }: {
+        nftMint: PublicKey;
+        nftDest: PublicKey;
+        owner: PublicKey;
+        collectionMint: PublicKey;
+        payer?: PublicKey | null;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "wnsDelist";
+            accounts: [{
+                name: "tswap";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftDest";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftMint";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+                docs: ["Implicitly checked via transfer. Will fail if wrong account", "This is closed below (dest = owner)"];
+            }, {
+                name: "singleListing";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "rent";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "associatedTokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "payer";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "approveAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "distribution";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "wnsProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "distributionProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "extraMetas";
+                isMut: false;
+                isSigner: false;
+            }];
+            args: [];
+        } & {
+            name: "wnsDelist";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        singleListing: PublicKey;
+        singleListingBump: number;
+    }>;
+    wnsBuySingleListing({ nftMint, nftBuyerAcc, owner, buyer, maxPrice, collectionMint, takerBroker, compute, priorityMicroLamports, }: {
+        nftMint: PublicKey;
+        nftBuyerAcc: PublicKey;
+        owner: PublicKey;
+        buyer: PublicKey;
+        maxPrice: BN;
+        collectionMint: PublicKey;
+        takerBroker?: PublicKey | null;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "wnsBuySingleListing";
+            accounts: [{
+                name: "tswap";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "feeVault";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "singleListing";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftBuyerAcc";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftMint";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+                docs: ["Implicitly checked via transfer. Will fail if wrong account.", "This is closed below (dest = owner)"];
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "buyer";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "associatedTokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "takerBroker";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "approveAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "distribution";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "wnsProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "distributionProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "extraMetas";
+                isMut: false;
+                isSigner: false;
+            }];
+            args: [{
+                name: "maxPrice";
+                type: "u64";
+            }];
+        } & {
+            name: "wnsBuySingleListing";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        singleListing: PublicKey;
+        singleListingBump: number;
+    }>;
+    wnsBuyNft({ whitelist, nftMint, nftBuyerAcc, owner, buyer, config, maxPrice, collectionMint, marginNr, takerBroker, compute, priorityMicroLamports, }: {
+        whitelist: PublicKey;
+        nftMint: PublicKey;
+        nftBuyerAcc: PublicKey;
+        owner: PublicKey;
+        buyer: PublicKey;
+        config: PoolConfigAnchor;
+        maxPrice: BN;
+        collectionMint: PublicKey;
+        marginNr?: number | null;
+        takerBroker?: PublicKey | null;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "wnsBuyNft";
+            accounts: [{
+                name: "tswap";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "feeVault";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "pool";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "whitelist";
+                isMut: false;
+                isSigner: false;
+                docs: ["Needed for pool seeds derivation, has_one = whitelist on pool"];
+            }, {
+                name: "nftBuyerAcc";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftMint";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+                docs: ["Implicitly checked via transfer. Will fail if wrong account.", "This is closed below (dest = owner)"];
+            }, {
+                name: "nftReceipt";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "solEscrow";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "buyer";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "associatedTokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "marginAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "takerBroker";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "approveAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "distribution";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "wnsProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "distributionProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "extraMetas";
+                isMut: false;
+                isSigner: false;
+            }];
+            args: [{
+                name: "config";
+                type: {
+                    defined: "PoolConfig";
+                };
+            }, {
+                name: "maxPrice";
+                type: "u64";
+            }];
+        } & {
+            name: "wnsBuyNft";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        poolPda: PublicKey;
+        poolBump: number;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        solEscrowPda: PublicKey;
+        solEscrowBump: number;
+        receiptPda: PublicKey;
+        receiptBump: number;
+        marginBump: number | null;
+        marginPda: PublicKey | null;
+    }>;
+    wnsDepositNft({ whitelist, nftMint, nftSource, owner, config, collectionMint, compute, priorityMicroLamports, }: {
+        whitelist: PublicKey;
+        nftMint: PublicKey;
+        nftSource: PublicKey;
+        owner: PublicKey;
+        config: PoolConfigAnchor;
+        collectionMint: PublicKey;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "wnsDepositNft";
+            accounts: [{
+                name: "tswap";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "pool";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "whitelist";
+                isMut: false;
+                isSigner: false;
+                docs: ["Needed for pool seeds derivation, also checked via has_one on pool"];
+            }, {
+                name: "nftSource";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftMint";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftReceipt";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: true;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "associatedTokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "mintProof";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "approveAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "distribution";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "wnsProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "distributionProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "extraMetas";
+                isMut: false;
+                isSigner: false;
+            }];
+            args: [{
+                name: "config";
+                type: {
+                    defined: "PoolConfig";
+                };
+            }];
+        } & {
+            name: "wnsDepositNft";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        poolPda: PublicKey;
+        poolBump: number;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        receiptPda: PublicKey;
+        receiptBump: number;
+        mintProofPda: PublicKey;
+    }>;
+    wnsSellNft({ type, whitelist, nftMint, nftSellerAcc, owner, seller, config, minPrice, collectionMint, marginNr, isCosigned, cosigner, takerBroker, compute, priorityMicroLamports, }: {
+        type: "trade" | "token";
+        whitelist: PublicKey;
+        nftMint: PublicKey;
+        nftSellerAcc: PublicKey;
+        owner: PublicKey;
+        seller: PublicKey;
+        config: PoolConfigAnchor;
+        minPrice: BN;
+        collectionMint: PublicKey;
+        marginNr?: number | null;
+        isCosigned?: boolean;
+        cosigner?: PublicKey;
+        /** optional taker broker account */
+        takerBroker?: PublicKey | null;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "wnsSellNftTradePool";
+            accounts: [{
+                name: "shared";
+                accounts: [{
+                    name: "tswap";
+                    isMut: false;
+                    isSigner: false;
+                }, {
+                    name: "feeVault";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "pool";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "whitelist";
+                    isMut: false;
+                    isSigner: false;
+                    docs: ["Needed for pool seeds derivation, also checked via has_one on pool"];
+                }, {
+                    name: "mintProof";
+                    isMut: false;
+                    isSigner: false;
+                    docs: ["intentionally not deserializing, it would be dummy in the case of VOC/FVC based verification"];
+                }, {
+                    name: "nftSellerAcc";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "nftMint";
+                    isMut: false;
+                    isSigner: false;
+                }, {
+                    name: "solEscrow";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "owner";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "seller";
+                    isMut: true;
+                    isSigner: true;
+                }];
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftReceipt";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "associatedTokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "marginAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "takerBroker";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "approveAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "distribution";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "wnsProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "distributionProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "extraMetas";
+                isMut: false;
+                isSigner: false;
+            }];
+            args: [{
+                name: "config";
+                type: {
+                    defined: "PoolConfig";
+                };
+            }, {
+                name: "minPrice";
+                type: "u64";
+            }];
+        } & {
+            name: "wnsSellNftTradePool";
+        }> | import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "wnsSellNftTokenPool";
+            accounts: [{
+                name: "shared";
+                accounts: [{
+                    name: "tswap";
+                    isMut: false;
+                    isSigner: false;
+                }, {
+                    name: "feeVault";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "pool";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "whitelist";
+                    isMut: false;
+                    isSigner: false;
+                    docs: ["Needed for pool seeds derivation, also checked via has_one on pool"];
+                }, {
+                    name: "mintProof";
+                    isMut: false;
+                    isSigner: false;
+                    docs: ["intentionally not deserializing, it would be dummy in the case of VOC/FVC based verification"];
+                }, {
+                    name: "nftSellerAcc";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "nftMint";
+                    isMut: false;
+                    isSigner: false;
+                }, {
+                    name: "solEscrow";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "owner";
+                    isMut: true;
+                    isSigner: false;
+                }, {
+                    name: "seller";
+                    isMut: true;
+                    isSigner: true;
+                }];
+            }, {
+                name: "ownerAtaAcc";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "associatedTokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "marginAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "takerBroker";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "approveAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "distribution";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "wnsProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "distributionProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "extraMetas";
+                isMut: false;
+                isSigner: false;
+            }];
+            args: [{
+                name: "config";
+                type: {
+                    defined: "PoolConfig";
+                };
+            }, {
+                name: "minPrice";
+                type: "u64";
+            }];
+        } & {
+            name: "wnsSellNftTokenPool";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        poolPda: PublicKey;
+        poolBump: number;
+        solEscrowPda: PublicKey;
+        solEscrowBump: number;
+        ownerAtaAcc: PublicKey;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        receiptPda: PublicKey;
+        receiptBump: number;
+        marginPda: PublicKey | null;
+        marginBump: number | null;
+    }>;
+    wnsWithdrawNft({ whitelist, nftMint, nftDest, owner, config, collectionMint, compute, priorityMicroLamports, }: {
+        whitelist: PublicKey;
+        nftMint: PublicKey;
+        nftDest: PublicKey;
+        owner: PublicKey;
+        config: PoolConfigAnchor;
+        collectionMint: PublicKey;
+        compute?: number | null | undefined;
+        priorityMicroLamports?: number | null | undefined;
+    }): Promise<{
+        builder: import("@coral-xyz/anchor/dist/cjs/program/namespace/methods").MethodsBuilder<TSwapIDL, {
+            name: "wnsWithdrawNft";
+            accounts: [{
+                name: "tswap";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "pool";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "whitelist";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftDest";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "nftMint";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "nftEscrow";
+                isMut: true;
+                isSigner: false;
+                docs: ["Implicitly checked via transfer. Will fail if wrong account", "This is closed below (dest = owner)"];
+            }, {
+                name: "nftReceipt";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "owner";
+                isMut: true;
+                isSigner: true;
+                docs: ["Tied to the pool because used to verify pool seeds"];
+            }, {
+                name: "tokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "associatedTokenProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "systemProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "approveAccount";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "distribution";
+                isMut: true;
+                isSigner: false;
+            }, {
+                name: "wnsProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "distributionProgram";
+                isMut: false;
+                isSigner: false;
+            }, {
+                name: "extraMetas";
+                isMut: false;
+                isSigner: false;
+            }];
+            args: [{
+                name: "config";
+                type: {
+                    defined: "PoolConfig";
+                };
+            }];
+        } & {
+            name: "wnsWithdrawNft";
+        }>;
+        tx: {
+            ixs: TransactionInstruction[];
+            extraSigners: never[];
+        };
+        tswapPda: PublicKey;
+        tswapBump: number;
+        poolPda: PublicKey;
+        poolBump: number;
+        escrowPda: PublicKey;
+        escrowBump: number;
+        receiptPda: PublicKey;
+        receiptBump: number;
+    }>;
     clearDelegate(nftDest: PublicKey, owner: PublicKey): Promise<TransactionInstruction[]>;
     getTswapRent(): Promise<number>;
     getPoolRent(): Promise<number>;
@@ -13293,9 +14887,12 @@ export declare class TensorSwapSDK {
     getNftDepositReceiptRent(): Promise<number>;
     getNftAuthorityRent(): Promise<number>;
     getTokenAcctRent(): Promise<number>;
+    getImmutableTokenAcctRent(): Promise<number>;
+    getTokenAcctRentForMint(mint: PublicKey, programId: PublicKey): Promise<number>;
     getSolEscrowRent(): Promise<number>;
-    getError(name: typeof IDL_latest["errors"][number]["name"]): typeof IDL_latest["errors"][number];
-    getErrorCodeHex(name: typeof IDL_latest["errors"][number]["name"]): string;
+    getApproveRent(): Promise<number>;
+    getError(name: (typeof IDL_latest)["errors"][number]["name"]): (typeof IDL_latest)["errors"][number];
+    getErrorCodeHex(name: (typeof IDL_latest)["errors"][number]["name"]): string;
     /** This only works for the latest IDL. This is intentional: otherwise we'll need to switch/case all historical deprecated ixs downstream. */
     parseIxs(tx: TransactionResponse): ParsedTSwapIx[];
     getPoolConfig(ix: ParsedTSwapIx): PoolConfig | null;

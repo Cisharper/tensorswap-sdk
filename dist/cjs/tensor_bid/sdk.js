@@ -6,6 +6,7 @@ const spl_token_1 = require("@solana/spl-token");
 const web3_js_1 = require("@solana/web3.js");
 const tensor_common_1 = require("@tensor-hq/tensor-common");
 const common_1 = require("../common");
+const token2022_1 = require("../token2022");
 const tensorswap_1 = require("../tensorswap");
 const constants_1 = require("./constants");
 const pda_1 = require("./pda");
@@ -89,7 +90,7 @@ class TensorBidSDK {
             tswapPdaBump,
         };
     }
-    async takeBid({ bidder, seller, nftMint, lamports, margin = null, metaCreators, nftSellerAcc, authData, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, optionalRoyaltyPct = null, takerBroker = null, }) {
+    async takeBid({ bidder, seller, nftMint, lamports, tokenProgram, margin = null, nftSellerAcc, meta, authData, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, optionalRoyaltyPct = null, takerBroker = null, }) {
         const [bidState, bidStateBump] = (0, pda_1.findBidStatePda)({
             mint: nftMint,
             owner: bidder,
@@ -100,26 +101,25 @@ class TensorBidSDK {
         });
         const tSwapAcc = await swapSdk.fetchTSwap(tswapPda);
         const [tempPda, tempPdaBump] = (0, pda_1.findNftTempPDA)({ nftMint });
-        const destAta = (0, spl_token_1.getAssociatedTokenAddressSync)(nftMint, bidder, true);
+        const destAta = (0, spl_token_1.getAssociatedTokenAddressSync)(nftMint, bidder, true, tokenProgram);
         //prepare 2 pnft account sets
-        const [{ meta, creators, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump: tempDestTokenRecordBump, destTokenRecordPda: tempDestTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, }, { destTokenRecordBump: destTokenRecordBump, destTokenRecordPda: destTokenRecordPda, },] = await Promise.all([
-            (0, tensor_common_1.prepPnftAccounts)({
-                connection: this.program.provider.connection,
-                metaCreators,
-                nftMint,
-                destAta: tempPda,
-                authData,
-                sourceAta: nftSellerAcc,
-            }),
-            (0, tensor_common_1.prepPnftAccounts)({
-                connection: this.program.provider.connection,
-                metaCreators,
-                nftMint,
-                destAta,
-                authData,
-                sourceAta: tempPda,
-            }),
-        ]);
+        const { meta: newMeta, creators, ownerTokenRecordBump, ownerTokenRecordPda, destTokenRecordBump: tempDestTokenRecordBump, destTokenRecordPda: tempDestTokenRecordPda, ruleSet, nftEditionPda, authDataSerialized, } = await (0, tensor_common_1.prepPnftAccounts)({
+            connection: this.program.provider.connection,
+            meta,
+            nftMint,
+            destAta: tempPda,
+            authData,
+            sourceAta: nftSellerAcc,
+        });
+        meta = newMeta;
+        const { destTokenRecordBump: destTokenRecordBump, destTokenRecordPda: destTokenRecordPda, } = await (0, tensor_common_1.prepPnftAccounts)({
+            connection: this.program.provider.connection,
+            meta,
+            nftMint,
+            destAta,
+            authData,
+            sourceAta: tempPda,
+        });
         const builder = this.program.methods
             .takeBid(lamports, !!ruleSet, authDataSerialized, optionalRoyaltyPct)
             .accounts({
@@ -129,12 +129,12 @@ class TensorBidSDK {
             bidState,
             bidder,
             nftSellerAcc,
-            nftMetadata: meta,
+            nftMetadata: meta.address,
             nftBidderAcc: destAta,
             nftTempAcc: tempPda,
             seller,
             tensorswapProgram: tensorswap_1.TENSORSWAP_ADDR,
-            tokenProgram: spl_token_1.TOKEN_PROGRAM_ID,
+            tokenProgram,
             associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: web3_js_1.SystemProgram.programId,
             rent: web3_js_1.SYSVAR_RENT_PUBKEY,
@@ -152,8 +152,8 @@ class TensorBidSDK {
             },
         })
             .remainingAccounts(creators.map((c) => ({
-            pubkey: c,
-            isWritable: true,
+            pubkey: c.address,
+            isWritable: c.share > 0,
             isSigner: false,
         })));
         return {
@@ -219,6 +219,104 @@ class TensorBidSDK {
             bidStateBump,
         };
     }
+    // --------------------------------------- T22
+    async takeBidT22({ bidder, seller, nftMint, lamports, margin = null, nftSellerAcc, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, takerBroker = null, }) {
+        const [bidState, bidStateBump] = (0, pda_1.findBidStatePda)({
+            mint: nftMint,
+            owner: bidder,
+        });
+        const [tswapPda, tswapPdaBump] = (0, tensorswap_1.findTSwapPDA)({});
+        const swapSdk = new tensorswap_1.TensorSwapSDK({
+            provider: this.program.provider,
+        });
+        const tSwapAcc = await swapSdk.fetchTSwap(tswapPda);
+        const [tempPda, tempPdaBump] = (0, pda_1.findNftTempPDA)({ nftMint });
+        const destAta = (0, spl_token_1.getAssociatedTokenAddressSync)(nftMint, bidder, true, spl_token_1.TOKEN_2022_PROGRAM_ID);
+        const builder = this.program.methods.takeBidT22(lamports).accounts({
+            nftMint,
+            tswap: tswapPda,
+            feeVault: tSwapAcc.feeVault,
+            bidState,
+            bidder,
+            nftSellerAcc,
+            nftBidderAcc: destAta,
+            seller,
+            tensorswapProgram: tensorswap_1.TENSORSWAP_ADDR,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            rent: web3_js_1.SYSVAR_RENT_PUBKEY,
+            marginAccount: margin ?? seller,
+            takerBroker: takerBroker ?? tSwapAcc.feeVault,
+        });
+        return {
+            builder,
+            tx: {
+                ixs: (0, tensor_common_1.prependComputeIxs)([await builder.instruction()], compute, priorityMicroLamports),
+                extraSigners: [],
+            },
+            bidState,
+            bidStateBump,
+            tswapPda,
+            tswapPdaBump,
+            tempPda,
+            tempPdaBump,
+            nftbidderAcc: destAta,
+        };
+    }
+    // --------------------------------------- WNS
+    async wnsTakeBid({ bidder, seller, nftMint, lamports, margin = null, nftSellerAcc, collectionMint, compute = common_1.DEFAULT_XFER_COMPUTE_UNITS, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, takerBroker = null, }) {
+        const [bidState, bidStateBump] = (0, pda_1.findBidStatePda)({
+            mint: nftMint,
+            owner: bidder,
+        });
+        const [tswapPda, tswapPdaBump] = (0, tensorswap_1.findTSwapPDA)({});
+        const swapSdk = new tensorswap_1.TensorSwapSDK({
+            provider: this.program.provider,
+        });
+        const tSwapAcc = await swapSdk.fetchTSwap(tswapPda);
+        const [tempPda, tempPdaBump] = (0, pda_1.findNftTempPDA)({ nftMint });
+        const destAta = (0, spl_token_1.getAssociatedTokenAddressSync)(nftMint, bidder, true, spl_token_1.TOKEN_2022_PROGRAM_ID);
+        const approveAccount = (0, token2022_1.getApprovalAccount)(nftMint);
+        const distribution = (0, token2022_1.getDistributionAccount)(collectionMint);
+        const extraMetas = (0, spl_token_1.getExtraAccountMetaAddress)(nftMint, token2022_1.WNS_PROGRAM_ID);
+        const builder = this.program.methods.wnsTakeBid(lamports).accounts({
+            nftMint,
+            tswap: tswapPda,
+            feeVault: tSwapAcc.feeVault,
+            bidState,
+            bidder,
+            nftSellerAcc,
+            nftBidderAcc: destAta,
+            seller,
+            tensorswapProgram: tensorswap_1.TENSORSWAP_ADDR,
+            tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+            associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: web3_js_1.SystemProgram.programId,
+            rent: web3_js_1.SYSVAR_RENT_PUBKEY,
+            marginAccount: margin ?? seller,
+            takerBroker: takerBroker ?? tSwapAcc.feeVault,
+            approveAccount,
+            distribution,
+            distributionProgram: token2022_1.WNS_DISTRIBUTION_PROGRAM_ID,
+            wnsProgram: token2022_1.WNS_PROGRAM_ID,
+            extraMetas,
+        });
+        return {
+            builder,
+            tx: {
+                ixs: (0, tensor_common_1.prependComputeIxs)([await builder.instruction()], compute, priorityMicroLamports),
+                extraSigners: [],
+            },
+            bidState,
+            bidStateBump,
+            tswapPda,
+            tswapPdaBump,
+            tempPda,
+            tempPdaBump,
+            nftbidderAcc: destAta,
+        };
+    }
     // --------------------------------------- helpers
     async getBidStateRent() {
         return await (0, tensor_common_1.getRent)(this.program.provider.connection, this.program.account.bidState);
@@ -242,7 +340,9 @@ class TensorBidSDK {
     }
     getFeeAmount(ix) {
         switch (ix.ix.name) {
-            case "takeBid": {
+            case "takeBid":
+            case "takeBidT22":
+            case "wnsTakeBid": {
                 const event = ix.events[0].data;
                 return event.tswapFee.add(event.creatorsFee);
             }
@@ -255,6 +355,8 @@ class TensorBidSDK {
     getSolAmount(ix) {
         switch (ix.ix.name) {
             case "takeBid":
+            case "takeBidT22":
+            case "wnsTakeBid":
             case "bid":
                 return ix.ix.data.lamports;
             case "cancelBid":

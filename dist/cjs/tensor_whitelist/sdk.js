@@ -92,7 +92,7 @@ class TensorWhitelistSDK {
     // --------------------------------------- whitelist methods
     //main signature: cosigner
     async initUpdateWhitelist({ cosigner = constants_1.TLIST_COSIGNER, owner, //can't pass default here, coz then it'll be auto-included in rem accs
-    uuid, rootHash = null, name = null, voc = null, fvc = null, }) {
+    uuid, rootHash = null, name = null, voc = null, fvc = null, compute = null, priorityMicroLamports = common_1.DEFAULT_MICRO_LAMPORTS, }) {
         const [authPda] = (0, pda_1.findWhitelistAuthPDA)({});
         const [whitelistPda] = (0, pda_1.findWhitelistPDA)({
             uuid,
@@ -118,7 +118,10 @@ class TensorWhitelistSDK {
             .remainingAccounts(remAcc);
         return {
             builder,
-            tx: { ixs: [await builder.instruction()], extraSigners: [] },
+            tx: {
+                ixs: (0, tensor_common_1.prependComputeIxs)([await builder.instruction()], compute, priorityMicroLamports),
+                extraSigners: [],
+            },
             authPda,
             whitelistPda,
         };
@@ -242,15 +245,31 @@ class TensorWhitelistSDK {
         return (0, tensor_common_1.removeNullBytes)(String.fromCharCode(...buffer));
     };
     // Generates a Merkle tree + root hash + proofs for a set of mints.
-    static createTreeForMints = (mints) => {
+    static createTreeForMints = (mints, skipVerify = false) => {
         const buffers = mints.map((m) => m.toBuffer());
-        const tree = new merkletreejs_1.default(buffers, keccak256_1.default, {
-            sort: true,
-            hashLeaves: true,
+        // Create hashes
+        const leaves = buffers.map(keccak256_1.default);
+        // Create an array of { leaf, mint } to preserve mapping
+        const leafMintPairs = leaves.map((leaf, index) => {
+            return { leaf: leaf, mint: mints[index] };
         });
-        const proofs = mints.map((mint) => {
-            const leaf = (0, keccak256_1.default)(mint.toBuffer());
-            const proof = tree.getProof(leaf);
+        // Presort the array based on the leaves, so that original leaves remain in the same order after tree construction
+        const sortedLeafMintPairs = leafMintPairs.slice().sort((a, b) => Buffer.compare(a.leaf, b.leaf));
+        // Extract only the leaves from sortedLeafMintPairs
+        const sortedLeaves = sortedLeafMintPairs.map(pair => pair.leaf);
+        const tree = new merkletreejs_1.default(sortedLeaves, keccak256_1.default, {
+            sortPairs: true,
+        });
+        const rootHash = tree.getRoot();
+        // Get all proofs (order should be same as leaves)
+        const allProofs = tree.getProofs();
+        // This assumes proofs indices align with mints indices (which appears to be the case).
+        const proofs = sortedLeafMintPairs.map((val, index) => {
+            const proof = allProofs[index];
+            const mint = val.mint;
+            if (!skipVerify && !tree.verify(proof, (0, keccak256_1.default)(mint.toBuffer()), rootHash)) {
+                throw new Error(`Invalid proof for mint at index ${index}`);
+            }
             const validProof = proof.map((p) => p.data);
             return { mint, proof: validProof };
         });
